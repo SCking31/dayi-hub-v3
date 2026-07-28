@@ -64,6 +64,7 @@ local Config = {
     FOVCheck           = false,
     CameraFOV          = 70,
     RGBAccent          = false,
+    RGBSpeed           = 0.003,
     TeamCheck          = false,
     VisibilityCheck    = false,
     FirstLaunch         = true,
@@ -274,7 +275,13 @@ local AccentThemes = {
     Pink   = { main = Color3.fromRGB(236, 72, 153),  dk = Color3.fromRGB(90, 20, 55),  btn = Color3.fromRGB(200, 50, 130),bg = Color3.fromRGB(110, 25, 70), tab = Color3.fromRGB(50, 15, 35) },
     Green  = { main = Color3.fromRGB(34, 197, 94),  dk = Color3.fromRGB(15, 70, 35),  btn = Color3.fromRGB(22, 163, 74), bg = Color3.fromRGB(20, 80, 45),  tab = Color3.fromRGB(10, 45, 25) },
     Amber  = { main = Color3.fromRGB(251, 191, 36),  dk = Color3.fromRGB(90, 65, 10),  btn = Color3.fromRGB(217, 160, 30), bg = Color3.fromRGB(100, 70, 15), tab = Color3.fromRGB(55, 40, 10) },
-    Red    = { main = Color3.fromRGB(255, 60, 60),   dk = Color3.fromRGB(90, 15, 15),  btn = Color3.fromRGB(220, 40, 40), bg = Color3.fromRGB(110, 20, 20), tab = Color3.fromRGB(50, 12, 12) },
+    Red     = { main = Color3.fromRGB(255, 60, 60),   dk = Color3.fromRGB(90, 15, 15),  btn = Color3.fromRGB(220, 40, 40), bg = Color3.fromRGB(110, 20, 20), tab = Color3.fromRGB(50, 12, 12) },
+    Orange  = { main = Color3.fromRGB(249, 115, 22),  dk = Color3.fromRGB(90, 40, 5),   btn = Color3.fromRGB(220, 100, 20), bg = Color3.fromRGB(100, 45, 10), tab = Color3.fromRGB(50, 25, 5) },
+    Lime    = { main = Color3.fromRGB(163, 230, 53),  dk = Color3.fromRGB(60, 80, 15),   btn = Color3.fromRGB(140, 200, 45), bg = Color3.fromRGB(70, 90, 20),  tab = Color3.fromRGB(35, 50, 10) },
+    Teal    = { main = Color3.fromRGB(20, 184, 166),  dk = Color3.fromRGB(5, 70, 65),   btn = Color3.fromRGB(15, 160, 145), bg = Color3.fromRGB(10, 80, 75),  tab = Color3.fromRGB(5, 40, 38) },
+    Sky     = { main = Color3.fromRGB(14, 165, 233),  dk = Color3.fromRGB(5, 40, 70),   btn = Color3.fromRGB(10, 145, 210), bg = Color3.fromRGB(10, 50, 80),  tab = Color3.fromRGB(5, 25, 45) },
+    Rose    = { main = Color3.fromRGB(244, 63, 94),   dk = Color3.fromRGB(90, 20, 35),   btn = Color3.fromRGB(220, 50, 80), bg = Color3.fromRGB(100, 25, 45),  tab = Color3.fromRGB(50, 15, 25) },
+    Emerald = { main = Color3.fromRGB(16, 185, 129),  dk = Color3.fromRGB(5, 60, 40),   btn = Color3.fromRGB(15, 160, 110), bg = Color3.fromRGB(10, 70, 50),  tab = Color3.fromRGB(5, 35, 25) },
 }
 
 local function applyAccentTheme(name)
@@ -1801,6 +1808,9 @@ local function buildPlayerPage()
     createSliderRow(scroll, "⚡", "Walk Speed", 16, 200, 16, Colors.Cyan, function(val)
         DayiHub.SetSlider("WalkSpeed", val)
     end)
+    createSliderRow(scroll, "🎯", "Aimbot Smoothness", 0.01, 0.99, 0.15, Colors.Pink, function(val)
+        DayiHub.SetSlider("AimbotSmoothness", val)
+    end)
     createToggleRow(scroll, "🐇", "Bunny Hop", Colors.Green, false, function(on)
         DayiHub.SetToggle("BunnyHop", on)
     end)
@@ -1915,10 +1925,20 @@ local function buildPremiumPage()
     })
 
     createColorPickerRow(scroll, "🎨", "UI Accent Color", Colors.Purple,
-        {"Purple", "Blue", "Cyan", "Pink", "Green", "Amber", "Red"},
-        Config.AccentTheme,
+        {"Purple", "Blue", "Cyan", "Pink", "Green", "Amber", "Red", "Orange", "Lime", "Teal", "Sky", "Rose", "Emerald", "Rainbow"},
+        Config.RGBAccent and "Rainbow" or Config.AccentTheme,
         function(themeName)
-            DayiHub.SetAccentTheme(themeName)
+            if themeName == "Rainbow" then
+                Config.RGBAccent = true
+                toggleRGBAccent()
+            else
+                Config.RGBAccent = false
+                if State.RGBConnection then
+                    State.RGBConnection:Disconnect()
+                    State.RGBConnection = nil
+                end
+                DayiHub.SetAccentTheme(themeName)
+            end
         end)
 
     -- Circle color picker (direct colors, not themes)
@@ -1951,9 +1971,13 @@ local function buildPremiumPage()
         end)
 
     -- RGB Accent toggle (premium only)
-    createToggleRow(scroll, "🌈", "RGB Accent Mode", Colors.Pink, false, function(on)
+    createToggleRow(scroll, "🌈", "RGB Accent Mode", Colors.Pink, Config.RGBAccent, function(on)
         Config.RGBAccent = on
         toggleRGBAccent()
+    end)
+
+    createSliderRow(scroll, "⚡", "RGB Cycle Speed", 0.001, 0.02, 0.003, Colors.Pink, function(val)
+        DayiHub.SetSlider("RGBSpeed", val)
     end)
 
     -- Coming soon notice
@@ -2046,10 +2070,13 @@ createColorPickerRow = function(parent, iconText, label, accentColor, themes, cu
     local swatches = {}
     for _, themeName in ipairs(themes) do
         local theme = AccentThemes[themeName]
+        local isRainbow = themeName == "Rainbow"
         local swatch = makeButton(swatchContainer, {
             Size = UDim2.new(0, 24, 0, 24),
-            BackgroundColor3 = theme.main,
-            Text = "",
+            BackgroundColor3 = isRainbow and Color3.fromRGB(255, 255, 255) or theme.main,
+            Text = isRainbow and "🌈" or "",
+            TextColor3 = Colors.White,
+            TextSize = 12,
         })
         makeUICorner(swatch, 12)
         local selStroke = makeUIStroke(swatch, Colors.White, 2, 1)
@@ -2097,7 +2124,10 @@ local function buildChangelogPage()
             sections = {
                 { type = "added", items = {
                     "Camera FOV slider in Settings (1-120)",
-                    "RGB Accent Mode toggle in Premium tab",
+                    "RGB Accent Mode with live rainbow cycling",
+                    "RGB Cycle Speed slider (adjust rainbow speed)",
+                    "7 new accent colors: Orange, Lime, Teal, Sky, Rose, Emerald",
+                    "Rainbow swatch in color picker (enables RGB mode)",
                     "Bunny Hop rewritten with StateChanged event for reliability",
                 }},
             },
@@ -3232,24 +3262,39 @@ local function toggleRGBAccent()
         State.RGBConnection:Disconnect()
         State.RGBConnection = nil
     end
-    if Config.RGBAccent then
-        local hue = 0
-        State.RGBConnection = RunService.Heartbeat:Connect(function()
-            hue = (hue + 0.003) % 1
-            local rgb = Color3.fromHSV(hue, 0.8, 1)
-            if MainFrame then
-                for _, desc in ipairs(MainFrame:GetDescendants()) do
-                    if desc:IsA("Frame") and desc.Name == "AccentBar" then
-                        desc.BackgroundColor3 = rgb
-                    elseif desc:IsA("TextLabel") and desc.Name == "TitleAccent" then
-                        desc.TextColor3 = rgb
-                    end
-                end
-            end
-        end)
-    else
+    if not Config.RGBAccent then
         applyAccentTheme(Config.AccentTheme or "Purple")
+        destroyOldGui()
+        PageFrames = {}
+        SidebarButtons = {}
+        buildGUI()
+        buildPages()
+        if PageFrames["Premium"] then PageFrames["Premium"].Visible = true end
+        return
     end
+    State.AccentFrames = {}
+    State.AccentStrokes = {}
+    local accent = Colors.Purple
+    if MainFrame then
+        for _, desc in ipairs(MainFrame:GetDescendants()) do
+            if desc:IsA("Frame") and desc.BackgroundColor3 == accent then
+                table.insert(State.AccentFrames, desc)
+            elseif desc:IsA("UIStroke") and desc.Color == accent then
+                table.insert(State.AccentStrokes, desc)
+            end
+        end
+    end
+    local hue = 0
+    State.RGBConnection = RunService.Heartbeat:Connect(function()
+        hue = (hue + (Config.RGBSpeed or 0.003)) % 1
+        local rgb = Color3.fromHSV(hue, 0.85, 1)
+        for _, f in ipairs(State.AccentFrames) do
+            if f and f.Parent then f.BackgroundColor3 = rgb end
+        end
+        for _, s in ipairs(State.AccentStrokes) do
+            if s and s.Parent then s.Color = rgb end
+        end
+    end)
 end
 
 local function setupBunnyHop()
@@ -3494,6 +3539,7 @@ function DayiHub.SetSlider(name, value)
     elseif name == "CircleRadius" then updateCircle()
     elseif name == "JumpPower" then applyJumpPower()
     elseif name == "CameraFOV" then applyCameraFOV()
+    elseif name == "RGBSpeed" then Config.RGBSpeed = value
     end
 end
 
@@ -4209,6 +4255,7 @@ local function init()
         Config[k] = false
     end
     Config.CameraFOV = 70
+    Config.RGBSpeed = 0.003
 
     State.OriginalZoomMax = LocalPlayer.CameraMaxZoomDistance
     State.OriginalZoomMin = LocalPlayer.CameraMinZoomDistance
