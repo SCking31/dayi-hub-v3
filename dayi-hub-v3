@@ -3900,8 +3900,8 @@ local function showWarningUI(onAccept)
 
     -- Main glass card
     local card = makeFrame(dim, {
-        Size = UDim2.new(0, 500, 0, 580),
-        Position = UDim2.new(0.5, -250, 0.5, -290),
+        Size = UDim2.new(0, 500, 0, 540),
+        Position = UDim2.new(0.5, -250, 0.5, -270),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
         ZIndex = 10,
@@ -4281,10 +4281,10 @@ local function showWarningUI(onAccept)
         ZIndex = 12,
     })
 
-    -- Accept button — full width, gradient, shimmer, gated by checkbox
+    -- Accept button — left side, gradient, shimmer, gated by checkbox
     local acceptBtn = makeButton(card, {
-        Size = UDim2.new(1, -40, 0, 48),
-        Position = UDim2.new(0, 20, 0, 516),
+        Size = UDim2.new(0.5, -25, 0, 44),
+        Position = UDim2.new(0, 20, 0, 476),
         BackgroundColor3 = Color3.fromRGB(60, 25, 20),
         Text = "I Accept",
         TextColor3 = Color3.fromRGB(180, 100, 80),
@@ -4323,10 +4323,10 @@ local function showWarningUI(onAccept)
     })
     acceptShimmerGrad.Parent = acceptShimmer
 
-    -- Exit button — full width, outline style
+    -- Exit button — right side, outline style
     local exitBtn = makeButton(card, {
-        Size = UDim2.new(1, -40, 0, 40),
-        Position = UDim2.new(0, 20, 0, 468),
+        Size = UDim2.new(0.5, -25, 0, 44),
+        Position = UDim2.new(0.5, 5, 0, 476),
         BackgroundColor3 = Color3.fromRGB(25, 10, 14),
         Text = "Exit",
         TextColor3 = Colors.TextDim,
@@ -4338,92 +4338,6 @@ local function showWarningUI(onAccept)
     })
     makeUICorner(exitBtn, 10)
     local exitStroke = makeUIStroke(exitBtn, Colors.Border, 1, 0.7)
-
-    -- Staggered reveal — properly handles children of containers
-    local function fadeItem(item, delayTime, isFadeOut, targetTextTrans, targetBgTrans)
-        task.delay(delayTime, function()
-            if not item or not item.Parent then return end
-            if isFadeOut then
-                if item:IsA("TextLabel") or item:IsA("TextButton") then
-                    item.TextTransparency = 1
-                end
-                item.BackgroundTransparency = 1
-                -- Fade children too
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("TextLabel") or child:IsA("TextButton") then
-                        child.TextTransparency = 1
-                    elseif child:IsA("Frame") then
-                        child.BackgroundTransparency = 1
-                    elseif child:IsA("UIStroke") then
-                        child.Transparency = 1
-                    end
-                end
-            else
-                if item:IsA("TextLabel") or item:IsA("TextButton") then
-                    TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = targetTextTrans or 0}):Play()
-                end
-                TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = targetBgTrans or 0}):Play()
-                -- Fade children too
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("TextLabel") or child:IsA("TextButton") then
-                        TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = targetTextTrans or 0}):Play()
-                    elseif child:IsA("Frame") then
-                        TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = targetBgTrans or 0}):Play()
-                    elseif child:IsA("UIStroke") then
-                        TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
-                    end
-                end
-            end
-        end)
-    end
-
-    -- Items to reveal: {item, originalBgTransparency, originalTextTransparency}
-    local revealList = {
-        {badge, 0.25, 0},
-        {title, 1, 0},
-        {divider, 0.2, 0},
-        {bodyText, 1, 0},
-        {checkboxRow, 0.4, 0},
-        {versionLabel, 1, 0},
-        {exitBtn, 0, 0},
-        {acceptBtn, 0, 0},
-    }
-    for idx, entry in ipairs(revealList) do
-        local item = entry[1]
-        local origBg = entry[2]
-        local origText = entry[3]
-        -- Hide initially
-        if item:IsA("TextLabel") or item:IsA("TextButton") then
-            item.TextTransparency = 1
-        end
-        item.BackgroundTransparency = 1
-        for _, child in ipairs(item:GetDescendants()) do
-            if child:IsA("TextLabel") or child:IsA("TextButton") then
-                child.TextTransparency = 1
-            elseif child:IsA("Frame") then
-                child.BackgroundTransparency = 1
-            elseif child:IsA("UIStroke") then
-                child.Transparency = 1
-            end
-        end
-        -- Reveal with stagger
-        task.delay(0.35 + idx * 0.07, function()
-            if not alive or not item.Parent then return end
-            if item:IsA("TextLabel") or item:IsA("TextButton") then
-                TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = origText}):Play()
-            end
-            TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = origBg}):Play()
-            for _, child in ipairs(item:GetDescendants()) do
-                if child:IsA("TextLabel") or child:IsA("TextButton") then
-                    TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-                elseif child:IsA("Frame") then
-                    TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-                elseif child:IsA("UIStroke") then
-                    TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
-                end
-            end
-        end)
-    end
 
     -- Checkbox toggle behavior
     local function updateAcceptButton()
