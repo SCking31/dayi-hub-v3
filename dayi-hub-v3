@@ -940,6 +940,7 @@ local activeTab = nil
 
 local buildPages  -- forward declaration so the Reload UI closure can call it
 local createColorPickerRow  -- forward declaration so buildPremiumPage can call it
+local toggleRGBAccent  -- forward declaration so buildPremiumPage can call it
 
 local function destroyOldGui()
     local old = CoreGui:FindFirstChild("DAYI_HUB")
@@ -3257,7 +3258,7 @@ local function applyCameraFOV()
     end)
 end
 
-local function toggleRGBAccent()
+toggleRGBAccent = function()
     if State.RGBConnection then
         State.RGBConnection:Disconnect()
         State.RGBConnection = nil
