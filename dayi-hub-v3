@@ -3203,12 +3203,37 @@ local function setupBunnyHop()
         State.BunnyHopConnection = nil
     end
     if Config.BunnyHop then
-        State.BunnyHopConnection = UserInputService.JumpRequest:Connect(function()
+        State.BunnyHopConnection = RunService.Heartbeat:Connect(function()
+            if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then return end
+            local hum = getHumanoid(LocalPlayer)
+            if not hum or hum.Health <= 0 then return end
+            local state = hum:GetState()
+            if state == Enum.HumanoidStateType.Landed then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    end
+end
+
+local function setupInfiniteJump()
+    if State.InfiniteJumpConn then
+        State.InfiniteJumpConn:Disconnect()
+        State.InfiniteJumpConn = nil
+    end
+    if Config.InfiniteJump then
+        State.InfiniteJumpConn = UserInputService.JumpRequest:Connect(function()
             local hum = getHumanoid(LocalPlayer)
             if hum and hum.Health > 0 then
                 hum:ChangeState(Enum.HumanoidStateType.Jumping)
             end
         end)
+    end
+end
+
+local function applyJumpPower()
+    local hum = getHumanoid(LocalPlayer)
+    if hum then
+        hum.JumpPower = Config.InfiniteJump and Config.JumpPower or State.OriginalJumpPower
     end
 end
 
@@ -3401,6 +3426,7 @@ function DayiHub.SetToggle(name, value)
     elseif name == "ShowCircle" then updateCircle()
     elseif name == "SpeedHack" then applyWalkSpeed()
     elseif name == "BunnyHop" then setupBunnyHop()
+    elseif name == "InfiniteJump" then setupInfiniteJump() applyJumpPower()
     elseif name == "FlyMode" then toggleFly()
     elseif name == "Noclip" then toggleNoclip()
     end
@@ -3410,6 +3436,7 @@ function DayiHub.SetSlider(name, value)
     Config[name] = value
     if name == "WalkSpeed" then applyWalkSpeed()
     elseif name == "CircleRadius" then updateCircle()
+    elseif name == "JumpPower" then applyJumpPower()
     end
 end
 
@@ -4153,6 +4180,8 @@ local function init()
         startCircleUpdater()
         applyWalkSpeed()
         setupBunnyHop()
+        setupInfiniteJump()
+        applyJumpPower()
         toggleFly()
         toggleNoclip()
         setupBindKey()
