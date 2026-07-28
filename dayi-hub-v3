@@ -69,6 +69,7 @@ local Config = {
     VisibilityCheck    = false,
     FirstLaunch         = true,
     BackgroundParticles  = true,
+    ParticleLevel        = 60,
 }
 
 --==========================================================================
@@ -479,30 +480,37 @@ local function createBackgroundParticles(parent)
     })
     ParticleState.folder = folder
 
-    local particleColors = { Colors.Purple, Colors.Pink, Colors.Cyan, Colors.PurpleBtn }
-    local count = 26
+    local particleColors = { Colors.Purple, Colors.Pink, Colors.Cyan, Colors.PurpleBtn, Colors.Yellow }
+    local level = Config.ParticleLevel or 60
+    local count = math.floor(18 + (level / 100) * 42)
+
+    local sizeMul = 0.8 + (level / 100) * 1.2
+    local alphaMul = 0.4 + (level / 100) * 0.45
 
     for i = 1, count do
         local color = particleColors[(i % #particleColors) + 1]
-        local size = math.random(2, 5)
+        local baseSize = math.random(3, 6)
+        local size = math.floor(baseSize * sizeMul)
         local p = makeFrame(folder, {
             Size = UDim2.new(0, size, 0, size),
             Position = UDim2.new(math.random(), 0, math.random(), 0),
             BackgroundColor3 = color,
-            BackgroundTransparency = 0.65 + math.random() * 0.25,
+            BackgroundTransparency = math.max(0.15, 0.85 - math.random() * 0.3 * alphaMul),
             ZIndex = 2,
             BorderSizePixel = 0,
         })
-        makeUICorner(p, 3)
+        makeUICorner(p, math.floor(size / 2))
 
         ParticleState.particles[#ParticleState.particles + 1] = {
             frame = p,
             x = p.Position.X.Scale,
             y = p.Position.Y.Scale,
             speed = 0.0006 + math.random() * 0.0014,
-            drift = (math.random() - 0.5) * 0.0006,
+            drift = (math.random() - 0.5) * 0.0008,
             phase = math.random() * math.pi * 2,
             color = color,
+            baseSize = size,
+            pulseSpeed = 0.01 + math.random() * 0.02,
         }
     end
 
@@ -517,6 +525,9 @@ local function createBackgroundParticles(parent)
                 info.x = math.random()
             end
             info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+
+            local pulse = 0.85 + math.sin(info.phase * 3) * 0.15
+            info.frame.BackgroundTransparency = math.max(0.1, (1 - pulse) * (1 - alphaMul * 0.5))
         end
     end)
     ParticleState.connections[#ParticleState.connections + 1] = conn
@@ -2186,6 +2197,10 @@ local function buildSettingsPage()
         DayiHub.SetToggle("BackgroundParticles", on)
     end)
 
+    createSliderRow(scroll, "✨", "Particle Level", 10, 100, Config.ParticleLevel or 60, Colors.Pink, function(val)
+        DayiHub.SetSlider("ParticleLevel", val)
+    end)
+
     createSliderRow(scroll, "📐", "UI Scale", 80, 120, 100, Colors.Purple, function(val)
         DayiHub.SetSlider("UIScale", val)
     end)
@@ -3638,6 +3653,11 @@ function DayiHub.SetSlider(name, value)
     elseif name == "CircleRadius" then updateCircle()
     elseif name == "JumpPower" then applyJumpPower()
     elseif name == "CameraFOV" then applyCameraFOV()
+    elseif name == "ParticleLevel" then
+        Config.ParticleLevel = value
+        if Config.BackgroundParticles then
+            createBackgroundParticles(ContentArea)
+        end
     elseif name == "RGBSpeed" then Config.RGBSpeed = value
     elseif name == "UIScale" then
         if MainFrameScale then
@@ -4358,6 +4378,7 @@ local function init()
         Config[k] = false
     end
     Config.CameraFOV = 70
+    Config.ParticleLevel = 60
     Config.RGBSpeed = 0.003
 
     State.OriginalZoomMax = LocalPlayer.CameraMaxZoomDistance
