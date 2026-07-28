@@ -918,8 +918,20 @@ local function destroyOldGui()
     if old2 then old2:Destroy() end
 end
 
+local function playOpenSound()
+    pcall(function()
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://17584863692"
+        sound.Volume = 0.8
+        sound.Parent = workspace
+        sound:Play()
+        game:GetService("Debris"):AddItem(sound, 8)
+    end)
+end
+
 local function buildGUI()
     destroyOldGui()
+    playOpenSound()
 
     ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "DAYI_HUB"
