@@ -519,11 +519,17 @@ local function addGlowPulse(guiObject, baseTransparency, pulseAmount, speed)
     baseTransparency = baseTransparency or 0.9
     pulseAmount = pulseAmount or 0.05
     speed = speed or 2
+    local period = 1 / speed
     task.spawn(function()
-        local t = 0
         while guiObject and guiObject.Parent do
-            t = t + RunService.RenderStepped:Wait()
-            guiObject.BackgroundTransparency = baseTransparency + math.sin(t * speed) * pulseAmount
+            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                BackgroundTransparency = baseTransparency - pulseAmount,
+            }):Play()
+            task.wait(period)
+            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                BackgroundTransparency = baseTransparency + pulseAmount,
+            }):Play()
+            task.wait(period)
         end
     end)
 end
@@ -533,14 +539,18 @@ local function addFloatAnim(guiObject, amplitude, speed, offset)
     speed = speed or 1.5
     offset = offset or 0
     local origY = guiObject.Position.Y.Offset
+    local period = 1 / speed
     task.spawn(function()
-        local t = offset
+        task.wait(offset / speed)
         while guiObject and guiObject.Parent do
-            t = t + RunService.RenderStepped:Wait()
-            guiObject.Position = UDim2.new(
-                guiObject.Position.X.Scale, guiObject.Position.X.Offset,
-                guiObject.Position.Y.Scale, origY + math.sin(t * speed) * amplitude
-            )
+            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                Position = UDim2.new(guiObject.Position.X.Scale, guiObject.Position.X.Offset, guiObject.Position.Y.Scale, origY - amplitude),
+            }):Play()
+            task.wait(period)
+            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                Position = UDim2.new(guiObject.Position.X.Scale, guiObject.Position.X.Offset, guiObject.Position.Y.Scale, origY + amplitude),
+            }):Play()
+            task.wait(period)
         end
     end)
 end
@@ -558,14 +568,12 @@ local function staggerChildren(parent, delayPerItem)
     task.spawn(function()
         for _, child in ipairs(parent:GetChildren()) do
             if child:IsA("GuiObject") and child.Name ~= "UIGradient" and child.Name ~= "UICorner" and child.Name ~= "UIStroke" and child.Name ~= "UIListLayout" and child.Name ~= "UIPadding" and child.Name ~= "UIGridLayout" then
-                child.BackgroundTransparency = 1
                 local origSize = child.Size
-                child.Size = UDim2.new(0, 0, 0, 0)
+                child.Size = UDim2.new(origSize.X.Scale, origSize.X.Offset * 0.92, origSize.Y.Scale, origSize.Y.Offset * 0.92)
                 task.wait(delayPerItem)
-                playSpringTween(child, {
+                TweenService:Create(child, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
                     Size = origSize,
-                    BackgroundTransparency = 0,
-                }, "elastic", 0.4)
+                }):Play()
             end
         end
     end)
@@ -760,23 +768,23 @@ local function createBackgroundParticles(parent)
         }
     end
 
-    local conn
-    conn = RunService.RenderStepped:Connect(function()
-        for _, info in ipairs(ParticleState.particles) do
-            info.phase = info.phase + info.speed
-            info.y = info.y - info.speed * 0.4
-            info.x = info.x + math.sin(info.phase) * info.drift
-            if info.y < -0.05 then
-                info.y = 1.05
-                info.x = math.random()
+    task.spawn(function()
+        while ParticleState.particles[1] and ParticleState.particles[1].frame.Parent do
+            for _, info in ipairs(ParticleState.particles) do
+                info.phase = info.phase + info.speed
+                info.y = info.y - info.speed * 0.4
+                info.x = info.x + math.sin(info.phase) * info.drift
+                if info.y < -0.05 then
+                    info.y = 1.05
+                    info.x = math.random()
+                end
+                info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+                local pulse = 0.85 + math.sin(info.phase * 3) * 0.15
+                info.frame.BackgroundTransparency = math.max(0.1, (1 - pulse) * (1 - alphaMul * 0.5))
             end
-            info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
-
-            local pulse = 0.85 + math.sin(info.phase * 3) * 0.15
-            info.frame.BackgroundTransparency = math.max(0.1, (1 - pulse) * (1 - alphaMul * 0.5))
+            task.wait(0.03)
         end
     end)
-    ParticleState.connections[#ParticleState.connections + 1] = conn
 end
 
 --==========================================================================
@@ -2106,12 +2114,12 @@ local function buildGUI()
         local fpsFrames = 0
         local fpsAccum = 0
         while true do
-            local dt = RunService.RenderStepped:Wait()
+            local dt = task.wait(0.5)
             if dt > 0 then
                 fpsAccum = fpsAccum + (1 / dt)
                 fpsFrames = fpsFrames + 1
             end
-            if fpsFrames >= 30 then
+            if fpsFrames >= 1 then
                 local avgFps = math.floor(fpsAccum / fpsFrames)
                 sysValLabels.fps.Text = avgFps .. " FPS"
                 if avgFps >= 50 then
@@ -2316,12 +2324,12 @@ local function buildGUI()
         local fpsFrames = 0
         local fpsAccum = 0
         while true do
-            local dt = RunService.RenderStepped:Wait()
+            local dt = task.wait(0.5)
             if dt > 0 then
                 fpsAccum = fpsAccum + (1 / dt)
                 fpsFrames = fpsFrames + 1
             end
-            if fpsFrames >= 30 then
+            if fpsFrames >= 1 then
                 local avgFps = math.floor(fpsAccum / fpsFrames)
                 if statusValLabels.fps then
                     statusValLabels.fps.Text = avgFps .. " FPS"
@@ -4450,22 +4458,23 @@ local function showWarningUI(onAccept)
             baseTrans = ef.BackgroundTransparency,
         }
     end
-    local emberConn
-    emberConn = RunService.RenderStepped:Connect(function()
-        for _, info in ipairs(embers) do
-            info.phase = info.phase + info.speed
-            info.y = info.y - info.speed * 0.6
-            info.x = info.x + math.sin(info.phase) * info.drift
-            if info.y < -0.05 then
-                info.y = 1.05
-                info.x = math.random()
+    task.spawn(function()
+        while alive and embers[1] and embers[1].frame.Parent do
+            for _, info in ipairs(embers) do
+                info.phase = info.phase + info.speed
+                info.y = info.y - info.speed * 0.6
+                info.x = info.x + math.sin(info.phase) * info.drift
+                if info.y < -0.05 then
+                    info.y = 1.05
+                    info.x = math.random()
+                end
+                info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+                local pulse = 0.7 + math.sin(info.phase * 2) * 0.3
+                info.frame.BackgroundTransparency = math.min(0.95, info.baseTrans + (1 - pulse) * 0.3)
             end
-            info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
-            local pulse = 0.7 + math.sin(info.phase * 2) * 0.3
-            info.frame.BackgroundTransparency = math.min(0.95, info.baseTrans + (1 - pulse) * 0.3)
+            task.wait(0.03)
         end
     end)
-    trackConn(emberConn)
 
     -- Main glass card
     local card = makeFrame(dim, {
@@ -5408,18 +5417,22 @@ local function showLoadingScreen(onComplete)
         }
     end
     local particleConn
-    particleConn = RunService.RenderStepped:Connect(function()
-        for _, info in ipairs(ambientParticles) do
-            info.phase = info.phase + info.speed
-            info.y = info.y - info.speed * 0.5
-            info.x = info.x + math.sin(info.phase) * info.drift
-            if info.y < -0.05 then
-                info.y = 1.05
-                info.x = math.random()
+    particleConn = nil
+    task.spawn(function()
+        while ambientParticles[1] and ambientParticles[1].frame.Parent do
+            for _, info in ipairs(ambientParticles) do
+                info.phase = info.phase + info.speed
+                info.y = info.y - info.speed * 0.5
+                info.x = info.x + math.sin(info.phase) * info.drift
+                if info.y < -0.05 then
+                    info.y = 1.05
+                    info.x = math.random()
+                end
+                info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+                local pulse = 0.7 + math.sin(info.phase * 2) * 0.3
+                info.frame.BackgroundTransparency = math.min(0.95, info.baseTrans + (1 - pulse) * 0.3)
             end
-            info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
-            local pulse = 0.7 + math.sin(info.phase * 2) * 0.3
-            info.frame.BackgroundTransparency = math.min(0.95, info.baseTrans + (1 - pulse) * 0.3)
+            task.wait(0.03)
         end
     end)
 
@@ -5825,13 +5838,12 @@ local function showLoadingScreen(onComplete)
             ZIndex = 14,
         })
 
-        -- Spinner rotation
+        -- Spinner rotation (throttled)
         local spinnerConn
-        spinnerConn = RunService.RenderStepped:Connect(function()
-            if spinner.Parent then
+        spinnerConn = task.spawn(function()
+            while spinner.Parent do
                 spinner.Rotation = spinner.Rotation + 6
-            else
-                spinnerConn:Disconnect()
+                task.wait(0.016)
             end
         end)
 
