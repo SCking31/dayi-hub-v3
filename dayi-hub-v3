@@ -68,6 +68,7 @@ local Config = {
     TeamCheck          = false,
     VisibilityCheck    = false,
     FirstLaunch         = true,
+    BackgroundParticles  = true,
 }
 
 --==========================================================================
@@ -448,6 +449,77 @@ local function createToggleRow(parent, iconText, label, accentColor, defaultOn, 
     toggle.Position = UDim2.new(1, -58, 0.5, -12)
 
     return row
+end
+
+--==========================================================================
+-- BACKGROUND PARTICLES
+--==========================================================================
+local ParticleState = { folder = nil, connections = {}, particles = {} }
+
+local function clearBackgroundParticles()
+    for _, c in ipairs(ParticleState.connections) do
+        pcall(function() c:Disconnect() end)
+    end
+    ParticleState.connections = {}
+    if ParticleState.folder then
+        pcall(function() ParticleState.folder:Destroy() end)
+    end
+    ParticleState.folder = nil
+    ParticleState.particles = {}
+end
+
+local function createBackgroundParticles(parent)
+    clearBackgroundParticles()
+
+    local folder = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ZIndex = 1,
+        ClipsDescendants = false,
+    })
+    ParticleState.folder = folder
+
+    local particleColors = { Colors.Purple, Colors.Pink, Colors.Cyan, Colors.PurpleBtn }
+    local count = 26
+
+    for i = 1, count do
+        local color = particleColors[(i % #particleColors) + 1]
+        local size = math.random(2, 5)
+        local p = makeFrame(folder, {
+            Size = UDim2.new(0, size, 0, size),
+            Position = UDim2.new(math.random(), 0, math.random(), 0),
+            BackgroundColor3 = color,
+            BackgroundTransparency = 0.65 + math.random() * 0.25,
+            ZIndex = 2,
+            BorderSizePixel = 0,
+        })
+        makeUICorner(p, 3)
+
+        ParticleState.particles[#ParticleState.particles + 1] = {
+            frame = p,
+            x = p.Position.X.Scale,
+            y = p.Position.Y.Scale,
+            speed = 0.0006 + math.random() * 0.0014,
+            drift = (math.random() - 0.5) * 0.0006,
+            phase = math.random() * math.pi * 2,
+            color = color,
+        }
+    end
+
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        for _, info in ipairs(ParticleState.particles) do
+            info.phase = info.phase + info.speed
+            info.y = info.y - info.speed * 0.4
+            info.x = info.x + math.sin(info.phase) * info.drift
+            if info.y < -0.05 then
+                info.y = 1.05
+                info.x = math.random()
+            end
+            info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+        end
+    end)
+    ParticleState.connections[#ParticleState.connections + 1] = conn
 end
 
 --==========================================================================
@@ -1327,6 +1399,10 @@ local function buildGUI()
         BorderSizePixel = 0,
     })
 
+    if Config.BackgroundParticles then
+        createBackgroundParticles(ContentArea)
+    end
+
     --==== RIGHT PANEL ====
     local rightPanel = makeFrame(MainFrame, {
         Size = UDim2.new(0, 230, 1, -104),
@@ -2112,6 +2188,10 @@ local function buildSettingsPage()
 
     createSliderRow(scroll, "📷", "Camera FOV", 1, 120, 70, Colors.Cyan, function(val)
         DayiHub.SetSlider("CameraFOV", val)
+    end)
+
+    createToggleRow(scroll, "🔮", "Background Particles", Colors.Pink, Config.BackgroundParticles, function(on)
+        DayiHub.SetToggle("BackgroundParticles", on)
     end)
 end
 
@@ -3543,6 +3623,12 @@ function DayiHub.SetToggle(name, value)
     elseif name == "InfiniteJump" then setupInfiniteJump() applyJumpPower()
     elseif name == "FlyMode" then toggleFly()
     elseif name == "Noclip" then toggleNoclip()
+    elseif name == "BackgroundParticles" then
+        if value and ContentArea then
+            createBackgroundParticles(ContentArea)
+        else
+            clearBackgroundParticles()
+        end
     end
 end
 
