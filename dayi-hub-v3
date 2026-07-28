@@ -4283,12 +4283,12 @@ local function showWarningUI(onAccept)
 
     -- Accept button — left side, gradient, shimmer, gated by checkbox
     local acceptBtn = makeButton(card, {
-        Size = UDim2.new(0.5, -25, 0, 44),
-        Position = UDim2.new(0, 20, 0, 476),
-        BackgroundColor3 = Color3.fromRGB(60, 25, 20),
+        Size = UDim2.new(0.5, -25, 0, 48),
+        Position = UDim2.new(0, 20, 0, 474),
+        BackgroundColor3 = Color3.fromRGB(180, 40, 30),
         Text = "I Accept",
-        TextColor3 = Color3.fromRGB(180, 100, 80),
-        TextSize = 15,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 16,
         TextXAlignment = Enum.TextXAlignment.Center,
         Font = Enum.Font.SourceSansBold,
         ZIndex = 13,
@@ -4298,12 +4298,23 @@ local function showWarningUI(onAccept)
     makeUICorner(acceptBtn, 12)
     local acceptGrad = Instance.new("UIGradient")
     acceptGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 30, 20)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 18, 12)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 60, 40)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(190, 45, 30)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 30, 20)),
     })
     acceptGrad.Rotation = 90
     acceptGrad.Parent = acceptBtn
-    local acceptStroke = makeUIStroke(acceptBtn, Colors.Red, 1.5, 0.6)
+    local acceptStroke = makeUIStroke(acceptBtn, Color3.fromRGB(255, 100, 80), 2, 0.15)
+    -- Glow behind accept button
+    local acceptGlow = makeFrame(card, {
+        Size = UDim2.new(0.5, -15, 0, 56),
+        Position = UDim2.new(0, 15, 0, 470),
+        BackgroundColor3 = Color3.fromRGB(255, 60, 40),
+        BackgroundTransparency = 0.85,
+        BorderSizePixel = 0,
+        ZIndex = 12,
+    })
+    makeUICorner(acceptGlow, 16)
 
     -- Shimmer overlay
     local acceptShimmer = makeFrame(acceptBtn, {
@@ -4342,13 +4353,15 @@ local function showWarningUI(onAccept)
     -- Checkbox toggle behavior
     local function updateAcceptButton()
         if understood then
-            acceptBtn.BackgroundColor3 = Colors.Red
+            acceptBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 40)
             acceptBtn.TextColor3 = Colors.White
             acceptGrad.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 55, 30)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 30, 15)),
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(240, 80, 50)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(210, 55, 35)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 35, 20)),
             })
-            acceptStroke.Transparency = 0.1
+            acceptStroke.Transparency = 0.05
+            acceptGlow.BackgroundTransparency = 0.7
             acceptShimmer.Visible = true
             -- Start shimmer
             task.spawn(function()
@@ -4359,13 +4372,15 @@ local function showWarningUI(onAccept)
                 end
             end)
         else
-            acceptBtn.BackgroundColor3 = Color3.fromRGB(60, 25, 20)
-            acceptBtn.TextColor3 = Color3.fromRGB(180, 100, 80)
+            acceptBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 30)
+            acceptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             acceptGrad.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 30, 20)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 18, 12)),
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 60, 40)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(190, 45, 30)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 30, 20)),
             })
-            acceptStroke.Transparency = 0.6
+            acceptStroke.Transparency = 0.15
+            acceptGlow.BackgroundTransparency = 0.85
             acceptShimmer.Visible = false
         end
     end
@@ -4391,13 +4406,15 @@ local function showWarningUI(onAccept)
     -- Hover effects for Accept (only when enabled)
     acceptBtn.MouseEnter:Connect(function()
         if understood then
-            TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(245, 70, 40)}):Play()
+            TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(255, 90, 60)}):Play()
+            TweenService:Create(acceptGlow, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
             TweenService:Create(cardStrokeOuter, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.25}):Play()
         end
     end)
     acceptBtn.MouseLeave:Connect(function()
         if understood then
-            TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Red}):Play()
+            TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(220, 60, 40)}):Play()
+            TweenService:Create(acceptGlow, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7}):Play()
             TweenService:Create(cardStrokeOuter, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.55}):Play()
         end
     end)
