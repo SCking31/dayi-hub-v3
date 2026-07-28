@@ -68,6 +68,26 @@ local Config = {
 }
 
 --==========================================================================
+-- USER PLAN (set by key system via _G.DAYI_HUB_PLAN)
+-- "premium" = full access, "developer" = full access + dev, "free" = limited
+--==========================================================================
+local UserPlan = "free"
+
+local function isPremiumUser()
+    return UserPlan == "premium" or UserPlan == "developer"
+end
+
+local function isDeveloper()
+    return UserPlan == "developer"
+end
+
+local PlanDisplay = {
+    premium    = { label = "Premium",   icon = "👑", color = "Purple" },
+    developer  = { label = "Developer", icon = "🔧", color = "Cyan" },
+    free       = { label = "Free Plan", icon = "🆓", color = "TextDim" },
+}
+
+--==========================================================================
 -- CONFIG PERSISTENCE
 --==========================================================================
 local ConfigFile = "dayi_hub_v10_config.json"
@@ -1277,6 +1297,14 @@ local function buildGUI()
     rightLayout.Padding = UDim.new(0, 10)
 
     -- Premium Status card
+    local planInfo = PlanDisplay[UserPlan] or PlanDisplay.free
+    local planColor = Colors[planInfo.color] or Colors.TextDim
+    local planBgColor = (UserPlan == "premium" or UserPlan == "developer") and Colors.PurpleBg or Colors.Panel
+    local planBadgeBg = (UserPlan == "premium" or UserPlan == "developer") and Colors.GreenDk or Colors.Amber
+    local planBadgeText = (UserPlan == "premium" or UserPlan == "developer") and Colors.Green or Colors.Amber
+    local planBadgeLabel = (UserPlan == "premium" or UserPlan == "developer") and "Active" or "Limited"
+    local planExpire = (UserPlan == "premium" or UserPlan == "developer") and "Expire: Never" or "Upgrade for full access"
+
     local premCard = makeFrame(rightPanel, {
         Size = UDim2.new(1, -28, 0, 142),
         BackgroundColor3 = Colors.Card,
@@ -1289,7 +1317,7 @@ local function buildGUI()
         Size = UDim2.new(1, -20, 0, 16),
         Position = UDim2.new(0, 10, 0, 10),
         BackgroundTransparency = 1,
-        Text = "Premium Status",
+        Text = "Account Status",
         TextColor3 = Colors.Text,
         TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -1299,40 +1327,40 @@ local function buildGUI()
     local premIcon = makeFrame(premCard, {
         Size = UDim2.new(0, 62, 0, 62),
         Position = UDim2.new(0.5, -31, 0, 30),
-        BackgroundColor3 = Colors.PurpleBg,
+        BackgroundColor3 = planBgColor,
     })
     makeUICorner(premIcon, 31)
-    makeUIStroke(premIcon, Colors.Purple, 1.5, 0)
+    makeUIStroke(premIcon, planColor, 1.5, 0)
     makeTextLabel(premIcon, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "👑",
+        Text = planInfo.icon,
         TextColor3 = Colors.Text,
         TextSize = 28,
         Font = Enum.Font.SourceSansBold,
     })
 
     local premLabel = makeTextLabel(premCard, {
-        Size = UDim2.new(0, 100, 0, 16),
-        Position = UDim2.new(0.5, -50, 0, 96),
+        Size = UDim2.new(0, 120, 0, 16),
+        Position = UDim2.new(0.5, -60, 0, 96),
         BackgroundTransparency = 1,
-        Text = "Premium",
-        TextColor3 = Colors.Purple,
+        Text = planInfo.label,
+        TextColor3 = planColor,
         TextSize = 13,
         Font = Enum.Font.SourceSansBold,
     })
 
     local premBadge = makeFrame(premCard, {
-        Size = UDim2.new(0, 44, 0, 18),
+        Size = UDim2.new(0, 56, 0, 18),
         Position = UDim2.new(0.5, 10, 0, 98),
-        BackgroundColor3 = Colors.GreenDk,
+        BackgroundColor3 = planBadgeBg,
     })
     makeUICorner(premBadge, 9)
     makeTextLabel(premBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "Active",
-        TextColor3 = Colors.Green,
+        Text = planBadgeLabel,
+        TextColor3 = planBadgeText,
         TextSize = 10,
         Font = Enum.Font.SourceSansBold,
     })
@@ -1341,7 +1369,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 14),
         Position = UDim2.new(0, 0, 0, 120),
         BackgroundTransparency = 1,
-        Text = "Expire: Never",
+        Text = planExpire,
         TextColor3 = Colors.TextDim,
         TextSize = 11,
         Font = Enum.Font.SourceSans,
@@ -1681,7 +1709,8 @@ local function buildGraphicsPage()
     }
 
     for i, f in ipairs(features) do
-        createFeatureCard(scroll, f.icon, f.name, f.desc, f.locked, f.default, function(on)
+        local effectiveLocked = f.locked and not isPremiumUser()
+        createFeatureCard(scroll, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
             DayiHub.SetToggle(f.key, on)
         end)
     end
@@ -1751,10 +1780,25 @@ local function buildPlayerPage()
     createToggleRow(scroll, "👻", "Noclip", Colors.Pink, false, function(on)
         DayiHub.SetToggle("Noclip", on)
     end)
-    createLockedRow(scroll, "🦅", "Infinite Jump")
-    createLockedRow(scroll, "⬆️", "Jump Power")
-    createLockedRow(scroll, "🔱", "Anti Ragdoll")
-    createLockedRow(scroll, "🛡️", "God Mode")
+    if isPremiumUser() then
+        createToggleRow(scroll, "🦅", "Infinite Jump", Colors.Pink, false, function(on)
+            DayiHub.SetToggle("InfiniteJump", on)
+        end)
+        createSliderRow(scroll, "⬆️", "Jump Power", 50, 300, 50, Colors.Pink, function(val)
+            DayiHub.SetSlider("JumpPower", val)
+        end)
+        createToggleRow(scroll, "🔱", "Anti Ragdoll", Colors.Cyan, false, function(on)
+            DayiHub.SetToggle("AntiRagdoll", on)
+        end)
+        createToggleRow(scroll, "🛡️", "God Mode", Colors.Purple, false, function(on)
+            DayiHub.SetToggle("GodMode", on)
+        end)
+    else
+        createLockedRow(scroll, "🦅", "Infinite Jump")
+        createLockedRow(scroll, "⬆️", "Jump Power")
+        createLockedRow(scroll, "🔱", "Anti Ragdoll")
+        createLockedRow(scroll, "🛡️", "God Mode")
+    end
 end
 
 local function buildPremiumPage()
@@ -1788,22 +1832,25 @@ local function buildPremiumPage()
         Font = Enum.Font.SourceSansBold,
     })
 
+    local bannerPlanInfo = PlanDisplay[UserPlan] or PlanDisplay.free
     makeTextLabel(banner, {
         Size = UDim2.new(1, -90, 0, 22),
         Position = UDim2.new(0, 82, 0, 20),
         BackgroundTransparency = 1,
-        Text = "Premium Member",
+        Text = bannerPlanInfo.label,
         TextColor3 = Colors.Text,
         TextSize = 16,
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSansBold,
     })
+    local bannerExpireText = (UserPlan == "premium" or UserPlan == "developer") and "Active — Expires: Never" or "Limited — Upgrade for full access"
+    local bannerExpireColor = (UserPlan == "premium" or UserPlan == "developer") and Colors.Purple or Colors.Amber
     makeTextLabel(banner, {
         Size = UDim2.new(1, -90, 0, 16),
         Position = UDim2.new(0, 82, 0, 44),
         BackgroundTransparency = 1,
-        Text = "Active — Expires: Never",
-        TextColor3 = Colors.Purple,
+        Text = bannerExpireText,
+        TextColor3 = bannerExpireColor,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSans,
@@ -4016,6 +4063,11 @@ local function showWelcomeBackNotification(onComplete)
 end
 
 local function init()
+    -- Read plan from key system
+    if _G.DAYI_HUB_PLAN then
+        UserPlan = _G.DAYI_HUB_PLAN
+    end
+
     loadConfig()
 
     -- Force all features OFF on startup; user enables what they want
@@ -4075,7 +4127,8 @@ local function init()
         end)
 
         applyAccentTheme(Config.AccentTheme)
-        notify("DAYI HUB v10.0", "Loaded! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
+        local planInfo = PlanDisplay[UserPlan] or PlanDisplay.free
+        notify("DAYI HUB v10.0", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
