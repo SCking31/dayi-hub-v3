@@ -3767,6 +3767,19 @@ local function showWarningUI(onAccept)
         warnGui.Parent = LocalPlayer.PlayerGui
     end
 
+    local alive = true
+    local animConns = {}
+    local function trackConn(c)
+        animConns[#animConns + 1] = c
+    end
+    local function killAnims()
+        alive = false
+        for _, c in ipairs(animConns) do
+            pcall(function() c:Disconnect() end)
+        end
+        animConns = {}
+    end
+
     -- Dim background with slight red tint
     local dim = makeFrame(warnGui, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -3792,7 +3805,7 @@ local function showWarningUI(onAccept)
     bgGrad.Rotation = 0
     bgGrad.Parent = gradOverlay
     task.spawn(function()
-        while gradOverlay.Parent do
+        while alive and gradOverlay.Parent do
             TweenService:Create(bgGrad, TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Rotation = 360}):Play()
             task.wait(4)
         end
@@ -3800,39 +3813,40 @@ local function showWarningUI(onAccept)
 
     -- Ambient red glow orbs
     local glow1 = makeFrame(dim, {
-        Size = UDim2.new(0, 450, 0, 450),
-        Position = UDim2.new(0.5, -225, 0.5, -225),
+        Size = UDim2.new(0, 500, 0, 500),
+        Position = UDim2.new(0.5, -250, 0.5, -250),
         BackgroundColor3 = Colors.Red,
         BackgroundTransparency = 0.9,
         BorderSizePixel = 0,
         ZIndex = 2,
     })
-    makeUICorner(glow1, 225)
+    makeUICorner(glow1, 250)
     local glow1Scale = Instance.new("UIScale")
-    glow1Scale.Scale = 0.7
+    glow1Scale.Scale = 0.6
     glow1Scale.Parent = glow1
-    TweenService:Create(glow1Scale, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.1}):Play()
-    TweenService:Create(glow1, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.94}):Play()
+    TweenService:Create(glow1Scale, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.15}):Play()
+    TweenService:Create(glow1, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.94}):Play()
 
     local glow2 = makeFrame(dim, {
-        Size = UDim2.new(0, 280, 0, 280),
-        Position = UDim2.new(0.5, -140, 0.5, -140),
+        Size = UDim2.new(0, 300, 0, 300),
+        Position = UDim2.new(0.5, -150, 0.5, -150),
         BackgroundColor3 = Color3.fromRGB(255, 100, 60),
         BackgroundTransparency = 0.92,
         BorderSizePixel = 0,
         ZIndex = 2,
     })
-    makeUICorner(glow2, 140)
+    makeUICorner(glow2, 150)
     task.spawn(function()
-        while glow2.Parent do
-            TweenService:Create(glow2, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.85, Size = UDim2.new(0, 320, 0, 320), Position = UDim2.new(0.5, -160, 0.5, -160)}):Play()
-            task.wait(1.5)
-            TweenService:Create(glow2, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.94, Size = UDim2.new(0, 280, 0, 280), Position = UDim2.new(0.5, -140, 0.5, -140)}):Play()
-            task.wait(1.5)
+        while alive and glow2.Parent do
+            TweenService:Create(glow2, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.82, Size = UDim2.new(0, 340, 0, 340), Position = UDim2.new(0.5, -170, 0.5, -170)}):Play()
+            task.wait(1.8)
+            if not alive then break end
+            TweenService:Create(glow2, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.94, Size = UDim2.new(0, 300, 0, 300), Position = UDim2.new(0.5, -150, 0.5, -150)}):Play()
+            task.wait(1.8)
         end
     end)
 
-    -- Floating ember particles
+    -- Floating ember particles with glow
     local emberFolder = makeFrame(dim, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -3840,9 +3854,9 @@ local function showWarningUI(onAccept)
         ClipsDescendants = false,
     })
     local embers = {}
-    for i = 1, 16 do
-        local eSize = math.random(2, 5)
-        local eColor = ({ Color3.fromRGB(255, 80, 40), Color3.fromRGB(255, 140, 50), Color3.fromRGB(220, 60, 30) })[(i % 3) + 1]
+    for i = 1, 20 do
+        local eSize = math.random(2, 6)
+        local eColor = ({ Color3.fromRGB(255, 80, 40), Color3.fromRGB(255, 140, 50), Color3.fromRGB(220, 60, 30), Color3.fromRGB(255, 200, 80) })[(i % 4) + 1]
         local ef = makeFrame(emberFolder, {
             Size = UDim2.new(0, eSize, 0, eSize),
             Position = UDim2.new(math.random(), 0, math.random(), 0),
@@ -3852,6 +3866,11 @@ local function showWarningUI(onAccept)
             ZIndex = 4,
         })
         makeUICorner(ef, math.floor(eSize / 2))
+        local eStroke = Instance.new("UIStroke")
+        eStroke.Color = eColor
+        eStroke.Thickness = 1
+        eStroke.Transparency = 0.5
+        eStroke.Parent = ef
         embers[#embers + 1] = {
             frame = ef,
             x = ef.Position.X.Scale,
@@ -3877,22 +3896,25 @@ local function showWarningUI(onAccept)
             info.frame.BackgroundTransparency = math.min(0.95, info.baseTrans + (1 - pulse) * 0.3)
         end
     end)
+    trackConn(emberConn)
 
     -- Main glass card
     local card = makeFrame(dim, {
-        Size = UDim2.new(0, 480, 0, 460),
-        Position = UDim2.new(0.5, -240, 0.5, -230),
+        Size = UDim2.new(0, 500, 0, 520),
+        Position = UDim2.new(0.5, -250, 0.5, -260),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
         ZIndex = 10,
+        ClipsDescendants = false,
     })
-    makeUICorner(card, 18)
+    makeUICorner(card, 20)
 
     -- Card gradient background
     local cardGrad = Instance.new("UIGradient")
     cardGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 12, 14)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 8, 10)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 12, 14)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(18, 8, 12)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 6, 10)),
     })
     cardGrad.Rotation = 90
     cardGrad.Parent = card
@@ -3909,82 +3931,110 @@ local function showWarningUI(onAccept)
     cardStrokeInner.Transparency = 0.92
     cardStrokeInner.Parent = card
 
-    -- Top edge highlight
-    local topGlow = makeFrame(card, {
-        Size = UDim2.new(0.5, 0, 0, 2),
-        Position = UDim2.new(0.25, 0, 0, 0),
-        BackgroundColor3 = Colors.Red,
-        BackgroundTransparency = 0.2,
-        BorderSizePixel = 0,
-        ZIndex = 11,
-    })
-    makeUICorner(topGlow, 1)
-
-    -- Hazard stripe accent bar at top
-    local hazardBar = makeFrame(card, {
-        Size = UDim2.new(1, 0, 0, 4),
-        BackgroundColor3 = Color3.fromRGB(40, 40, 40),
-        BorderSizePixel = 0,
-        ZIndex = 11,
-    })
-    makeUICorner(hazardBar, 2)
-    local hazardGrad = Instance.new("UIGradient")
-    hazardGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 60, 60)),
-        ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 180, 0)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(60, 60, 60)),
-        ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 180, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 60, 60)),
-    })
-    hazardGrad.Rotation = 0
-    hazardGrad.Parent = hazardBar
-    -- Animate hazard stripes sliding
+    -- Pulsing border glow
     task.spawn(function()
-        local offset = 0
-        while hazardBar.Parent do
-            offset = offset + 0.02
-            hazardGrad.Offset = Vector2.new(offset, 0)
-            RunService.RenderStepped:Wait()
+        while alive and card.Parent do
+            TweenService:Create(cardStrokeOuter, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.3, Thickness = 3.5}):Play()
+            task.wait(1.5)
+            if not alive then break end
+            TweenService:Create(cardStrokeOuter, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.6, Thickness = 2}):Play()
+            task.wait(1.5)
+        end
+    end)
+
+    -- Sci-fi corner brackets
+    local cornerColor = Color3.fromRGB(255, 100, 60)
+    local cornerSize = 24
+    local cornerThick = 2
+    local function makeCorner(parent, posX, posY, flipX, flipY)
+        local h = makeFrame(parent, {
+            Size = UDim2.new(0, cornerSize, 0, cornerThick),
+            Position = UDim2.new(posX, flipX and -cornerSize or 0, posY, 0),
+            BackgroundColor3 = cornerColor,
+            BackgroundTransparency = 0.2,
+            BorderSizePixel = 0,
+            ZIndex = 15,
+        })
+        makeUICorner(h, 1)
+        local v = makeFrame(parent, {
+            Size = UDim2.new(0, cornerThick, 0, cornerSize),
+            Position = UDim2.new(posX, 0, posY, flipY and -cornerSize or 0),
+            BackgroundColor3 = cornerColor,
+            BackgroundTransparency = 0.2,
+            BorderSizePixel = 0,
+            ZIndex = 15,
+        })
+        makeUICorner(v, 1)
+        return h, v
+    end
+    makeCorner(card, 0, 0, false, false)
+    makeCorner(card, 1, 0, true, false)
+    makeCorner(card, 0, 1, false, true)
+    makeCorner(card, 1, 1, true, true)
+
+    -- Scan line effect
+    local scanLine = makeFrame(card, {
+        Size = UDim2.new(1, 0, 0, 2),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 100, 60),
+        BackgroundTransparency = 0.7,
+        BorderSizePixel = 0,
+        ZIndex = 14,
+    })
+    makeUICorner(scanLine, 1)
+    local scanGrad = Instance.new("UIGradient")
+    scanGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    scanGrad.Parent = scanLine
+    task.spawn(function()
+        while alive and scanLine.Parent do
+            scanLine.Position = UDim2.new(0, 0, 0, 0)
+            TweenService:Create(scanLine, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 1, 0)}):Play()
+            task.wait(3.5)
         end
     end)
 
     local cardScale = Instance.new("UIScale")
-    cardScale.Scale = 0.75
+    cardScale.Scale = 0.7
     cardScale.Parent = card
     TweenService:Create(cardScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
-    -- Close (X) button
+    -- Close (X) button — circular
     local closeBtn = makeButton(card, {
-        Size = UDim2.new(0, 30, 0, 30),
-        Position = UDim2.new(1, -40, 0, 14),
+        Size = UDim2.new(0, 32, 0, 32),
+        Position = UDim2.new(1, -42, 0, 16),
         BackgroundColor3 = Color3.fromRGB(40, 15, 20),
         Text = "✕",
         TextColor3 = Colors.TextDim,
         TextSize = 14,
         Font = Enum.Font.SourceSansBold,
-        ZIndex = 13,
+        ZIndex = 16,
+        AutoButtonColor = false,
     })
-    makeUICorner(closeBtn, 8)
-    makeUIStroke(closeBtn, Colors.Red, 1, 0.7)
+    makeUICorner(closeBtn, 16)
+    local closeStroke = makeUIStroke(closeBtn, Colors.Red, 1, 0.6)
 
-    -- Warning icon with pulsing glow + spinning ring
+    -- Warning icon — drawn triangle with exclamation
     local iconContainer = makeFrame(card, {
-        Size = UDim2.new(0, 90, 0, 90),
-        Position = UDim2.new(0.5, -45, 0, 36),
+        Size = UDim2.new(0, 100, 0, 100),
+        Position = UDim2.new(0.5, -50, 0, 40),
         BackgroundTransparency = 1,
         ZIndex = 12,
     })
 
     -- Outer glow
     local iconGlow = makeFrame(iconContainer, {
-        Size = UDim2.new(1, 24, 1, 24),
-        Position = UDim2.new(0, -12, 0, -12),
+        Size = UDim2.new(1, 28, 1, 28),
+        Position = UDim2.new(0, -14, 0, -14),
         BackgroundColor3 = Colors.Red,
         BackgroundTransparency = 0.82,
         BorderSizePixel = 0,
         ZIndex = 11,
     })
-    makeUICorner(iconGlow, 57)
+    makeUICorner(iconGlow, 64)
 
     -- Spinning gradient ring
     local ring = makeFrame(iconContainer, {
@@ -3996,76 +4046,126 @@ local function showWarningUI(onAccept)
     local ringStroke = Instance.new("UIStroke")
     ringStroke.Color = Colors.Red
     ringStroke.Thickness = 2.5
-    ringStroke.Transparency = 0.2
+    ringStroke.Transparency = 0.15
     ringStroke.Parent = ring
     local ringGrad = Instance.new("UIGradient")
     ringGrad.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 40)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 0)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 200, 0)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 40, 30)),
     })
     ringGrad.Parent = ringStroke
-    makeUICorner(ring, 45)
+    makeUICorner(ring, 50)
     task.spawn(function()
-        while ring.Parent do
-            TweenService:Create(ringGrad, TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = 360}):Play()
-            task.wait(2)
+        while alive and ring.Parent do
+            TweenService:Create(ringGrad, TweenInfo.new(2.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = 360}):Play()
+            task.wait(2.5)
         end
     end)
 
-    -- Icon core
-    local iconCircle = makeFrame(iconContainer, {
-        Size = UDim2.new(0, 60, 0, 60),
-        Position = UDim2.new(0.5, -30, 0.5, -30),
-        BackgroundColor3 = Color3.fromRGB(60, 20, 15),
+    -- Inner spinning ring (opposite direction)
+    local ringInner = makeFrame(iconContainer, {
+        Size = UDim2.new(0, 82, 0, 82),
+        Position = UDim2.new(0.5, -41, 0.5, -41),
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ZIndex = 13,
     })
-    makeUICorner(iconCircle, 30)
-    local iconGrad = Instance.new("UIGradient")
-    iconGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 35, 20)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 15, 10)),
+    local ringStroke2 = Instance.new("UIStroke")
+    ringStroke2.Color = Color3.fromRGB(255, 180, 0)
+    ringStroke2.Thickness = 1.5
+    ringStroke2.Transparency = 0.35
+    ringStroke2.Parent = ringInner
+    local ringGrad2 = Instance.new("UIGradient")
+    ringGrad2.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 200, 0)),
+        ColorSequenceKeypoint.new(0.5, Colors.Red),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 100, 40)),
     })
-    iconGrad.Rotation = 90
-    iconGrad.Parent = iconCircle
+    ringGrad2.Parent = ringStroke2
+    makeUICorner(ringInner, 41)
+    task.spawn(function()
+        while alive and ringInner.Parent do
+            TweenService:Create(ringGrad2, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = -360}):Play()
+            task.wait(3)
+        end
+    end)
 
-    local iconLabel = makeTextLabel(iconCircle, {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "⚠",
-        TextColor3 = Color3.fromRGB(255, 200, 80),
-        TextSize = 32,
-        Font = Enum.Font.SourceSansBold,
+    -- Triangle background
+    local triBg = makeFrame(iconContainer, {
+        Size = UDim2.new(0, 56, 0, 50),
+        Position = UDim2.new(0.5, -28, 0.5, -22),
+        BackgroundColor3 = Color3.fromRGB(50, 18, 12),
+        BorderSizePixel = 0,
         ZIndex = 14,
     })
+    local triGrad = Instance.new("UIGradient")
+    triGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 35, 15)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 12, 8)),
+    })
+    triGrad.Rotation = 90
+    triGrad.Parent = triBg
 
-    -- Pulsing icon glow
+    -- Draw triangle using ImageLabel with a generated triangle image
+    -- Since we can't use images, use a TextLabel with a triangle character
+    local triLabel = makeTextLabel(iconContainer, {
+        Size = UDim2.new(0, 60, 0, 60),
+        Position = UDim2.new(0.5, -30, 0.5, -30),
+        BackgroundTransparency = 1,
+        Text = "▲",
+        TextColor3 = Color3.fromRGB(255, 160, 50),
+        TextSize = 52,
+        Font = Enum.Font.SourceSansBold,
+        ZIndex = 15,
+    })
+    triBg.Visible = false
+
+    -- Exclamation mark
+    local exclaimBar = makeFrame(iconContainer, {
+        Size = UDim2.new(0, 4, 0, 18),
+        Position = UDim2.new(0.5, -2, 0.5, -12),
+        BackgroundColor3 = Color3.fromRGB(255, 220, 100),
+        BorderSizePixel = 0,
+        ZIndex = 16,
+    })
+    makeUICorner(exclaimBar, 2)
+    local exclaimDot = makeFrame(iconContainer, {
+        Size = UDim2.new(0, 4, 0, 4),
+        Position = UDim2.new(0.5, -2, 0.5, 10),
+        BackgroundColor3 = Color3.fromRGB(255, 220, 100),
+        BorderSizePixel = 0,
+        ZIndex = 16,
+    })
+    makeUICorner(exclaimDot, 2)
+
+    -- Pulsing icon glow + shake
     task.spawn(function()
-        while iconGlow.Parent do
-            TweenService:Create(iconGlow, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.55, Size = UDim2.new(1, 32, 1, 32), Position = UDim2.new(0, -16, 0, -16)}):Play()
-            task.wait(1)
-            TweenService:Create(iconGlow, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.85, Size = UDim2.new(1, 24, 1, 24), Position = UDim2.new(0, -12, 0, -12)}):Play()
-            task.wait(1)
+        while alive and iconGlow.Parent do
+            TweenService:Create(iconGlow, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.5, Size = UDim2.new(1, 36, 1, 36), Position = UDim2.new(0, -18, 0, -18)}):Play()
+            task.wait(1.2)
+            if not alive then break end
+            TweenService:Create(iconGlow, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.85, Size = UDim2.new(1, 28, 1, 28), Position = UDim2.new(0, -14, 0, -14)}):Play()
+            task.wait(1.2)
         end
     end)
 
     -- Warning badge
     local badge = makeFrame(card, {
-        Size = UDim2.new(0, 90, 0, 20),
-        Position = UDim2.new(0.5, -45, 0, 134),
+        Size = UDim2.new(0, 100, 0, 22),
+        Position = UDim2.new(0.5, -50, 0, 148),
         BackgroundColor3 = Color3.fromRGB(80, 25, 15),
-        BackgroundTransparency = 0.3,
+        BackgroundTransparency = 0.25,
         BorderSizePixel = 0,
         ZIndex = 12,
     })
-    makeUICorner(badge, 10)
-    makeUIStroke(badge, Colors.Red, 1, 0.5)
-    makeTextLabel(badge, {
+    makeUICorner(badge, 11)
+    local badgeStroke = makeUIStroke(badge, Colors.Red, 1, 0.4)
+    local badgeText = makeTextLabel(badge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = "IMPORTANT",
-        TextColor3 = Color3.fromRGB(255, 140, 80),
+        TextColor3 = Color3.fromRGB(255, 160, 80),
         TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Center,
         Font = Enum.Font.SourceSansBold,
@@ -4074,34 +4174,42 @@ local function showWarningUI(onAccept)
 
     -- Title
     local title = makeTextLabel(card, {
-        Size = UDim2.new(1, -40, 0, 28),
-        Position = UDim2.new(0, 20, 0, 162),
+        Size = UDim2.new(1, -40, 0, 32),
+        Position = UDim2.new(0, 20, 0, 178),
         BackgroundTransparency = 1,
         Text = "Disclaimer",
         TextColor3 = Colors.Text,
-        TextSize = 22,
+        TextSize = 24,
         TextXAlignment = Enum.TextXAlignment.Center,
         Font = Enum.Font.SourceSansBold,
         ZIndex = 12,
     })
 
-    -- Divider
+    -- Divider — gradient line
     local divider = makeFrame(card, {
-        Size = UDim2.new(0, 40, 0, 3),
-        Position = UDim2.new(0.5, -20, 0, 194),
+        Size = UDim2.new(0, 60, 0, 3),
+        Position = UDim2.new(0.5, -30, 0, 214),
         BackgroundColor3 = Colors.Red,
-        BackgroundTransparency = 0.3,
+        BackgroundTransparency = 0.2,
         BorderSizePixel = 0,
         ZIndex = 12,
     })
     makeUICorner(divider, 2)
+    local divGrad = Instance.new("UIGradient")
+    divGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 30)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 40)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 60, 30)),
+    })
+    divGrad.Parent = divider
 
-    -- Body text
+    -- Body text — RichText with bullet points
     local bodyText = makeTextLabel(card, {
-        Size = UDim2.new(1, -50, 0, 120),
-        Position = UDim2.new(0, 25, 0, 210),
+        Size = UDim2.new(1, -60, 0, 110),
+        Position = UDim2.new(0, 30, 0, 230),
         BackgroundTransparency = 1,
-        Text = 'This project is provided as-is. Using custom scripts may violate the rules of some experiences and could result in restrictions or other actions depending on the game\'s policies.\n\nBy clicking "I Accept", you confirm that you understand these risks and choose to proceed.',
+        RichText = true,
+        Text = '<font color="#FF6B6B">This project is provided as-is.</font> Using custom scripts may violate the rules of some experiences and could result in restrictions.\n\n<font color="#FFCC50">•</font> You assume all responsibility for usage\n<font color="#FFCC50">•</font> We are not liable for any consequences\n<font color="#FFCC50">•</font> Use at your own discretion',
         TextColor3 = Colors.TextDim,
         TextSize = 14,
         TextWrapped = true,
@@ -4111,10 +4219,59 @@ local function showWarningUI(onAccept)
         ZIndex = 12,
     })
 
+    -- Checkbox "I understand" flow
+    local checkboxRow = makeFrame(card, {
+        Size = UDim2.new(1, -60, 0, 36),
+        Position = UDim2.new(0, 30, 0, 356),
+        BackgroundColor3 = Color3.fromRGB(30, 12, 14),
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+        ZIndex = 12,
+    })
+    makeUICorner(checkboxRow, 8)
+    local checkboxStroke = makeUIStroke(checkboxRow, Colors.Red, 1, 0.7)
+
+    local checkbox = makeButton(checkboxRow, {
+        Size = UDim2.new(0, 20, 0, 20),
+        Position = UDim2.new(0, 12, 0.5, -10),
+        BackgroundColor3 = Color3.fromRGB(20, 8, 10),
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 13,
+    })
+    makeUICorner(checkbox, 5)
+    local checkStroke = makeUIStroke(checkbox, Colors.Red, 1.5, 0.4)
+
+    local checkmark = makeTextLabel(checkbox, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "✓",
+        TextColor3 = Colors.White,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Font = Enum.Font.SourceSansBold,
+        ZIndex = 14,
+        TextTransparency = 1,
+    })
+
+    local checkboxLabel = makeTextLabel(checkboxRow, {
+        Size = UDim2.new(1, -50, 1, 0),
+        Position = UDim2.new(0, 42, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "I have read and understand the risks",
+        TextColor3 = Colors.TextDim,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+        ZIndex = 13,
+    })
+
+    local understood = false
+
     -- Version label
     local versionLabel = makeTextLabel(card, {
         Size = UDim2.new(1, -40, 0, 16),
-        Position = UDim2.new(0, 20, 1, -108),
+        Position = UDim2.new(0, 20, 1, -118),
         BackgroundTransparency = 1,
         Text = "Version v1.1",
         TextColor3 = Colors.TextFaint,
@@ -4124,125 +4281,253 @@ local function showWarningUI(onAccept)
         ZIndex = 12,
     })
 
-    -- Accept button with gradient + shimmer
+    -- Accept button — full width, gradient, shimmer, gated by checkbox
     local acceptBtn = makeButton(card, {
-        Size = UDim2.new(0, 210, 0, 44),
-        Position = UDim2.new(0, 20, 1, -56),
-        BackgroundColor3 = Colors.Red,
-        Text = "  I Accept",
-        TextColor3 = Colors.White,
+        Size = UDim2.new(1, -40, 0, 46),
+        Position = UDim2.new(0, 20, 1, -64),
+        BackgroundColor3 = Color3.fromRGB(60, 25, 20),
+        Text = "I Accept",
+        TextColor3 = Color3.fromRGB(180, 100, 80),
         TextSize = 15,
         TextXAlignment = Enum.TextXAlignment.Center,
         Font = Enum.Font.SourceSansBold,
         ZIndex = 13,
+        AutoButtonColor = false,
+        ClipsDescendants = true,
     })
-    makeUICorner(acceptBtn, 10)
+    makeUICorner(acceptBtn, 12)
     local acceptGrad = Instance.new("UIGradient")
     acceptGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 50, 30)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 30, 20)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 30, 20)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 18, 12)),
     })
     acceptGrad.Rotation = 90
     acceptGrad.Parent = acceptBtn
+    local acceptStroke = makeUIStroke(acceptBtn, Colors.Red, 1.5, 0.6)
+
+    -- Shimmer overlay
     local acceptShimmer = makeFrame(acceptBtn, {
-        Size = UDim2.new(0, 60, 1, 0),
-        Position = UDim2.new(0, -60, 0, 0),
+        Size = UDim2.new(0, 80, 1, 0),
+        Position = UDim2.new(0, -80, 0, 0),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.8,
+        BackgroundTransparency = 0.85,
         BorderSizePixel = 0,
         ZIndex = 14,
     })
-    makeUICorner(acceptShimmer, 10)
+    makeUICorner(acceptShimmer, 12)
     local acceptShimmerGrad = Instance.new("UIGradient")
     acceptShimmerGrad.Transparency = NumberSequence.new({
         NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.5, 0.3),
+        NumberSequenceKeypoint.new(0.5, 0.2),
         NumberSequenceKeypoint.new(1, 1),
     })
     acceptShimmerGrad.Parent = acceptShimmer
-    task.spawn(function()
-        while acceptBtn.Parent do
-            acceptShimmer.Position = UDim2.new(0, -60, 0, 0)
-            TweenService:Create(acceptShimmer, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0)}):Play()
-            task.wait(2.5)
-        end
-    end)
 
-    -- Exit button
+    -- Exit button — full width, outline style
     local exitBtn = makeButton(card, {
-        Size = UDim2.new(0, 210, 0, 44),
-        Position = UDim2.new(0, 250, 1, -56),
-        BackgroundColor3 = Color3.fromRGB(35, 15, 20),
+        Size = UDim2.new(1, -40, 0, 40),
+        Position = UDim2.new(0, 20, 1, -118 + 46 + 8),
+        BackgroundColor3 = Color3.fromRGB(25, 10, 14),
         Text = "Exit",
         TextColor3 = Colors.TextDim,
-        TextSize = 15,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Center,
         Font = Enum.Font.SourceSansBold,
         ZIndex = 13,
+        AutoButtonColor = false,
     })
     makeUICorner(exitBtn, 10)
-    makeUIStroke(exitBtn, Colors.Border, 1, 0.6)
+    local exitStroke = makeUIStroke(exitBtn, Colors.Border, 1, 0.7)
 
-    -- Staggered reveal: badge, title, divider, body, buttons
-    local revealItems = {badge, title, divider, bodyText, acceptBtn, exitBtn, versionLabel}
-    for idx, item in ipairs(revealItems) do
-        if item:IsA("TextLabel") then
+    -- Staggered reveal — properly handles children of containers
+    local function fadeItem(item, delayTime, isFadeOut, targetTextTrans, targetBgTrans)
+        task.delay(delayTime, function()
+            if not item or not item.Parent then return end
+            if isFadeOut then
+                if item:IsA("TextLabel") or item:IsA("TextButton") then
+                    item.TextTransparency = 1
+                end
+                item.BackgroundTransparency = 1
+                -- Fade children too
+                for _, child in ipairs(item:GetDescendants()) do
+                    if child:IsA("TextLabel") or child:IsA("TextButton") then
+                        child.TextTransparency = 1
+                    elseif child:IsA("Frame") then
+                        child.BackgroundTransparency = 1
+                    elseif child:IsA("UIStroke") then
+                        child.Transparency = 1
+                    end
+                end
+            else
+                if item:IsA("TextLabel") or item:IsA("TextButton") then
+                    TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = targetTextTrans or 0}):Play()
+                end
+                TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = targetBgTrans or 0}):Play()
+                -- Fade children too
+                for _, child in ipairs(item:GetDescendants()) do
+                    if child:IsA("TextLabel") or child:IsA("TextButton") then
+                        TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = targetTextTrans or 0}):Play()
+                    elseif child:IsA("Frame") then
+                        TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = targetBgTrans or 0}):Play()
+                    elseif child:IsA("UIStroke") then
+                        TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Items to reveal: {item, originalBgTransparency, originalTextTransparency}
+    local revealList = {
+        {badge, 0.25, 0},
+        {title, 1, 0},
+        {divider, 0.2, 0},
+        {bodyText, 1, 0},
+        {checkboxRow, 0.4, 0},
+        {versionLabel, 1, 0},
+        {exitBtn, 0, 0},
+        {acceptBtn, 0, 0},
+    }
+    for idx, entry in ipairs(revealList) do
+        local item = entry[1]
+        local origBg = entry[2]
+        local origText = entry[3]
+        -- Hide initially
+        if item:IsA("TextLabel") or item:IsA("TextButton") then
             item.TextTransparency = 1
-            task.delay(0.3 + idx * 0.08, function()
-                if item.Parent then
-                    TweenService:Create(item, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        end
+        item.BackgroundTransparency = 1
+        for _, child in ipairs(item:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                child.TextTransparency = 1
+            elseif child:IsA("Frame") then
+                child.BackgroundTransparency = 1
+            elseif child:IsA("UIStroke") then
+                child.Transparency = 1
+            end
+        end
+        -- Reveal with stagger
+        task.delay(0.35 + idx * 0.07, function()
+            if not alive or not item.Parent then return end
+            if item:IsA("TextLabel") or item:IsA("TextButton") then
+                TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = origText}):Play()
+            end
+            TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = origBg}):Play()
+            for _, child in ipairs(item:GetDescendants()) do
+                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                    TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+                elseif child:IsA("Frame") then
+                    TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                elseif child:IsA("UIStroke") then
+                    TweenService:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+                end
+            end
+        end)
+    end
+
+    -- Checkbox toggle behavior
+    local function updateAcceptButton()
+        if understood then
+            acceptBtn.BackgroundColor3 = Colors.Red
+            acceptBtn.TextColor3 = Colors.White
+            acceptGrad.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 55, 30)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 30, 15)),
+            })
+            acceptStroke.Transparency = 0.1
+            acceptShimmer.Visible = true
+            -- Start shimmer
+            task.spawn(function()
+                while alive and understood and acceptBtn.Parent do
+                    acceptShimmer.Position = UDim2.new(0, -80, 0, 0)
+                    TweenService:Create(acceptShimmer, TweenInfo.new(1.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0)}):Play()
+                    task.wait(2.5)
                 end
             end)
-        elseif item:IsA("Frame") then
-            local origTrans = item.BackgroundTransparency
-            item.BackgroundTransparency = 1
-            task.delay(0.3 + idx * 0.08, function()
-                if item.Parent then
-                    TweenService:Create(item, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = origTrans}):Play()
-                end
-            end)
-        elseif item:IsA("TextButton") then
-            local origTrans = item.BackgroundTransparency
-            item.BackgroundTransparency = 1
-            item.TextTransparency = 1
-            task.delay(0.3 + idx * 0.08, function()
-                if item.Parent then
-                    TweenService:Create(item, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = origTrans, TextTransparency = 0}):Play()
-                end
-            end)
+        else
+            acceptBtn.BackgroundColor3 = Color3.fromRGB(60, 25, 20)
+            acceptBtn.TextColor3 = Color3.fromRGB(180, 100, 80)
+            acceptGrad.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 30, 20)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 18, 12)),
+            })
+            acceptStroke.Transparency = 0.6
+            acceptShimmer.Visible = false
         end
     end
 
-    -- Hover effects for Accept
+    checkbox.MouseButton1Click:Connect(function()
+        understood = not understood
+        if understood then
+            TweenService:Create(checkmark, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+            TweenService:Create(checkbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Red}):Play()
+            TweenService:Create(checkStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.1}):Play()
+            TweenService:Create(checkboxLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
+            TweenService:Create(checkboxStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.3}):Play()
+        else
+            TweenService:Create(checkmark, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+            TweenService:Create(checkbox, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(20, 8, 10)}):Play()
+            TweenService:Create(checkStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.4}):Play()
+            TweenService:Create(checkboxLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.TextDim}):Play()
+            TweenService:Create(checkboxStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.7}):Play()
+        end
+        updateAcceptButton()
+    end)
+
+    -- Hover effects for Accept (only when enabled)
     acceptBtn.MouseEnter:Connect(function()
-        TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(240, 60, 35)}):Play()
-        TweenService:Create(cardStrokeOuter, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.3}):Play()
+        if understood then
+            TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(245, 70, 40)}):Play()
+            TweenService:Create(cardStrokeOuter, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.25}):Play()
+        end
     end)
     acceptBtn.MouseLeave:Connect(function()
-        TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Red}):Play()
-        TweenService:Create(cardStrokeOuter, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.55}):Play()
+        if understood then
+            TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Red}):Play()
+            TweenService:Create(cardStrokeOuter, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.55}):Play()
+        end
     end)
 
     -- Hover effects for Exit
     exitBtn.MouseEnter:Connect(function()
-        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(60, 25, 30)}):Play()
+        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 20, 25)}):Play()
+        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
     end)
     exitBtn.MouseLeave:Connect(function()
-        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(35, 15, 20)}):Play()
+        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(25, 10, 14)}):Play()
+        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.TextDim}):Play()
     end)
 
     -- Hover effects for Close (X)
     closeBtn.MouseEnter:Connect(function()
         TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Red}):Play()
         TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.White}):Play()
+        TweenService:Create(closeStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.1}):Play()
     end)
     closeBtn.MouseLeave:Connect(function()
         TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(40, 15, 20)}):Play()
         TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.TextDim}):Play()
+        TweenService:Create(closeStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.6}):Play()
     end)
 
+    -- Hover effects for checkbox
+    checkbox.MouseEnter:Connect(function()
+        if not understood then
+            TweenService:Create(checkbox, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(35, 15, 18)}):Play()
+        end
+    end)
+    checkbox.MouseLeave:Connect(function()
+        if not understood then
+            TweenService:Create(checkbox, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(20, 8, 10)}):Play()
+        end
+    end)
+
+    local closed = false
     local function closeWarning()
-        if emberConn then emberConn:Disconnect() end
-        TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.75}):Play()
+        if closed then return end
+        closed = true
+        killAnims()
+        TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.7}):Play()
         TweenService:Create(dim, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
         TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
         TweenService:Create(cardStrokeOuter, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
@@ -4262,6 +4547,22 @@ local function showWarningUI(onAccept)
 
     closeBtn.MouseButton1Click:Connect(closeWarning)
     acceptBtn.MouseButton1Click:Connect(function()
+        if not understood then
+            -- Shake the checkbox row to indicate it needs to be checked
+            local origPos = checkboxRow.Position
+            TweenService:Create(checkboxRow, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + 5, origPos.Y.Scale, origPos.Y.Offset)}):Play()
+            task.wait(0.05)
+            TweenService:Create(checkboxRow, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset - 5, origPos.Y.Scale, origPos.Y.Offset)}):Play()
+            task.wait(0.05)
+            TweenService:Create(checkboxRow, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + 3, origPos.Y.Scale, origPos.Y.Offset)}):Play()
+            task.wait(0.05)
+            TweenService:Create(checkboxRow, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Position = origPos}):Play()
+            -- Flash checkbox stroke
+            TweenService:Create(checkboxStroke, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0, Color = Colors.Red}):Play()
+            task.wait(0.15)
+            TweenService:Create(checkboxStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.7}):Play()
+            return
+        end
         closeWarning()
         onAccept()
     end)
