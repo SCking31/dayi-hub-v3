@@ -245,30 +245,45 @@ end
 --==========================================================================
 local Colors = {
     Bg       = Color3.fromRGB(11, 11, 18),
+    BgGrad1  = Color3.fromRGB(14, 12, 26),
+    BgGrad2  = Color3.fromRGB(9, 8, 16),
     Sidebar   = Color3.fromRGB(8, 8, 14),
+    SidebarGrad1 = Color3.fromRGB(10, 9, 18),
+    SidebarGrad2 = Color3.fromRGB(7, 6, 12),
     Card      = Color3.fromRGB(18, 18, 28),
+    CardGrad1 = Color3.fromRGB(22, 20, 36),
+    CardGrad2 = Color3.fromRGB(14, 12, 22),
     CardHov   = Color3.fromRGB(22, 22, 34),
     Panel     = Color3.fromRGB(14, 14, 22),
-    Purple    = Color3.fromRGB(160, 60, 255),
+    Purple    = Color3.fromRGB(168, 85, 247),
+    PurpleBright = Color3.fromRGB(192, 132, 252),
     PurpleDk  = Color3.fromRGB(45, 10, 90),
-    PurpleBtn = Color3.fromRGB(130, 40, 220),
+    PurpleBtn = Color3.fromRGB(139, 92, 246),
+    PurpleBtnHov = Color3.fromRGB(167, 139, 250),
     PurpleBg  = Color3.fromRGB(60, 15, 110),
+    PurpleGlow = Color3.fromRGB(168, 85, 247),
     ActiveTab = Color3.fromRGB(24, 10, 48),
-    Green     = Color3.fromRGB(34, 197, 94),
+    Green     = Color3.fromRGB(52, 211, 153),
     GreenDk   = Color3.fromRGB(20, 80, 44),
-    ToggleOff = Color3.fromRGB(55, 65, 81),
-    Pink      = Color3.fromRGB(236, 72, 153),
-    Cyan      = Color3.fromRGB(0, 220, 220),
+    GreenGlow = Color3.fromRGB(52, 211, 153),
+    ToggleOff = Color3.fromRGB(42, 42, 58),
+    Pink      = Color3.fromRGB(244, 114, 182),
+    PinkGlow  = Color3.fromRGB(244, 114, 182),
+    Cyan      = Color3.fromRGB(34, 211, 238),
+    CyanGlow  = Color3.fromRGB(34, 211, 238),
     Amber     = Color3.fromRGB(251, 191, 36),
+    AmberGlow = Color3.fromRGB(251, 191, 36),
     White     = Color3.fromRGB(255, 255, 255),
     Text      = Color3.fromRGB(241, 245, 249),
     TextDim   = Color3.fromRGB(148, 163, 184),
     TextFaint = Color3.fromRGB(100, 110, 130),
-    Red       = Color3.fromRGB(255, 60, 60),
-    Bar       = Color3.fromRGB(9, 9, 15),
+    Red       = Color3.fromRGB(248, 113, 113),
+    RedBright = Color3.fromRGB(239, 68, 68),
+    Bar       = Color3.fromRGB(5, 5, 9),
     BadgeBg   = Color3.fromRGB(20, 20, 32),
-    InputBg   = Color3.fromRGB(16, 16, 24),
+    InputBg   = Color3.fromRGB(14, 14, 22),
     Border    = Color3.fromRGB(255, 255, 255),
+    GlassBorder = Color3.fromRGB(255, 255, 255),
 }
 
 local AccentThemes = {
@@ -356,6 +371,27 @@ local function makeUIListLayout(parent, padding, direction)
     return l
 end
 
+local function makeUIGradient(parent, color1, color2, rotation)
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new(color1, color2)
+    g.Rotation = rotation or 90
+    g.Parent = parent
+    return g
+end
+
+local function makeGlow(parent, color, size, pos, transparency)
+    local glow = makeFrame(parent, {
+        Size = size,
+        Position = pos,
+        BackgroundColor3 = color,
+        BackgroundTransparency = transparency or 0.85,
+        BorderSizePixel = 0,
+        ZIndex = 0,
+    })
+    makeUICorner(glow, 16)
+    return glow
+end
+
 local function makeScrollFrame(parent, props)
     local f = Instance.new("ScrollingFrame")
     f.Parent = parent
@@ -381,6 +417,9 @@ local function createToggle(parent, defaultOn, onChange)
         Text = "",
     })
     makeUICorner(btn, 12)
+    if on then
+        makeUIGradient(btn, Colors.Green, Color3.fromRGB(16, 185, 129), 135)
+    end
 
     local knob = makeFrame(btn, {
         Size = UDim2.new(0, 18, 0, 18),
@@ -392,6 +431,12 @@ local function createToggle(parent, defaultOn, onChange)
     btn.MouseButton1Click:Connect(function()
         on = not on
         btn.BackgroundColor3 = on and Colors.Green or Colors.ToggleOff
+        -- Remove old gradient
+        local oldGrad = btn:FindFirstChild("UIGradient")
+        if oldGrad then oldGrad:Destroy() end
+        if on then
+            makeUIGradient(btn, Colors.Green, Color3.fromRGB(16, 185, 129), 135)
+        end
         TweenService:Create(knob, TweenInfo.new(0.15), {
             Position = on and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
         }):Play()
@@ -410,13 +455,15 @@ local function createToggleRow(parent, iconText, label, accentColor, defaultOn, 
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(row, 9)
-    makeUIStroke(row, Colors.Border, 1, 0.9)
+    makeUIGradient(row, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(row, Colors.Purple, 1, 0.85)
 
     local accentBar = makeFrame(row, {
         Size = UDim2.new(0, 3, 1, 0),
         BackgroundColor3 = accentColor,
     })
     makeUICorner(accentBar, 2)
+    makeUIGradient(accentBar, accentColor, Color3.fromRGB(accentColor.R * 180, accentColor.G * 180, accentColor.B * 180), 180)
 
     local iconCircle = makeFrame(row, {
         Size = UDim2.new(0, 38, 0, 38),
@@ -425,6 +472,7 @@ local function createToggleRow(parent, iconText, label, accentColor, defaultOn, 
     })
     makeUICorner(iconCircle, 19)
     makeUIStroke(iconCircle, accentColor, 1, 0.55)
+    makeUIGradient(iconCircle, Color3.fromRGB(18, 16, 28), Color3.fromRGB(12, 10, 20), 135)
 
     local iconLabel = makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -542,7 +590,8 @@ local function createLockedRow(parent, iconText, label)
         BackgroundColor3 = Colors.Panel,
     })
     makeUICorner(row, 9)
-    makeUIStroke(row, Colors.Border, 1, 0.96)
+    makeUIGradient(row, Color3.fromRGB(16, 14, 24), Color3.fromRGB(10, 8, 16), 135)
+    makeUIStroke(row, Colors.Purple, 1, 0.92)
 
     local overlay = makeFrame(row, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -557,7 +606,8 @@ local function createLockedRow(parent, iconText, label)
         BackgroundColor3 = Color3.fromRGB(28, 28, 36),
     })
     makeUICorner(iconCircle, 19)
-    makeUIStroke(iconCircle, Colors.Border, 1, 0.88)
+    makeUIGradient(iconCircle, Color3.fromRGB(32, 30, 42), Color3.fromRGB(24, 22, 32), 135)
+    makeUIStroke(iconCircle, Colors.Purple, 1, 0.85)
 
     local iconLabel = makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -585,7 +635,8 @@ local function createLockedRow(parent, iconText, label)
         BackgroundColor3 = Color3.fromRGB(30, 30, 40),
     })
     makeUICorner(badge, 11)
-    makeUIStroke(badge, Colors.Border, 1, 0.88)
+    makeUIGradient(badge, Color3.fromRGB(36, 34, 48), Color3.fromRGB(24, 22, 34), 135)
+    makeUIStroke(badge, Colors.Purple, 1, 0.85)
 
     makeTextLabel(badge, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -608,13 +659,15 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(row, 9)
-    makeUIStroke(row, Colors.Border, 1, 0.9)
+    makeUIGradient(row, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(row, Colors.Purple, 1, 0.85)
 
     local accentBar = makeFrame(row, {
         Size = UDim2.new(0, 3, 1, 0),
         BackgroundColor3 = accentColor,
     })
     makeUICorner(accentBar, 2)
+    makeUIGradient(accentBar, accentColor, Color3.fromRGB(accentColor.R * 180, accentColor.G * 180, accentColor.B * 180), 180)
 
     local iconCircle = makeFrame(row, {
         Size = UDim2.new(0, 38, 0, 38),
@@ -623,6 +676,7 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
     })
     makeUICorner(iconCircle, 19)
     makeUIStroke(iconCircle, accentColor, 1, 0.55)
+    makeUIGradient(iconCircle, Color3.fromRGB(18, 16, 28), Color3.fromRGB(12, 10, 20), 135)
 
     makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -656,6 +710,7 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         BackgroundColor3 = accentColor,
     })
     makeUICorner(fill, 3)
+    makeUIGradient(fill, accentColor, Color3.fromRGB(accentColor.R * 220, accentColor.G * 220, accentColor.B * 220), 90)
 
     local knob = makeFrame(track, {
         Size = UDim2.new(0, 14, 0, 14),
@@ -732,13 +787,15 @@ local function createDropdownRow(parent, iconText, label, options, defaultVal, a
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(row, 9)
-    makeUIStroke(row, Colors.Border, 1, 0.9)
+    makeUIGradient(row, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(row, Colors.Purple, 1, 0.85)
 
     local accentBar = makeFrame(row, {
         Size = UDim2.new(0, 3, 1, 0),
         BackgroundColor3 = accentColor,
     })
     makeUICorner(accentBar, 2)
+    makeUIGradient(accentBar, accentColor, Color3.fromRGB(accentColor.R * 180, accentColor.G * 180, accentColor.B * 180), 180)
 
     local iconCircle = makeFrame(row, {
         Size = UDim2.new(0, 38, 0, 38),
@@ -747,6 +804,7 @@ local function createDropdownRow(parent, iconText, label, options, defaultVal, a
     })
     makeUICorner(iconCircle, 19)
     makeUIStroke(iconCircle, accentColor, 1, 0.55)
+    makeUIGradient(iconCircle, Color3.fromRGB(18, 16, 28), Color3.fromRGB(12, 10, 20), 135)
 
     makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -778,6 +836,8 @@ local function createDropdownRow(parent, iconText, label, options, defaultVal, a
         Font = Enum.Font.SourceSansBold,
     })
     makeUICorner(valueBtn, 8)
+    makeUIGradient(valueBtn, accentColor, Color3.fromRGB(accentColor.R * 220, accentColor.G * 220, accentColor.B * 220), 135)
+    makeUIStroke(valueBtn, Colors.White, 1, 0.8)
 
     valueBtn.MouseButton1Click:Connect(function()
         currentIndex = currentIndex % #options + 1
@@ -801,13 +861,15 @@ local function createBindKeyRow(parent, iconText, label, accentColor, onKey, ini
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(row, 9)
-    makeUIStroke(row, Colors.Border, 1, 0.9)
+    makeUIGradient(row, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(row, Colors.Purple, 1, 0.85)
 
     local accentBar = makeFrame(row, {
         Size = UDim2.new(0, 3, 1, 0),
         BackgroundColor3 = accentColor,
     })
     makeUICorner(accentBar, 2)
+    makeUIGradient(accentBar, accentColor, Color3.fromRGB(accentColor.R * 180, accentColor.G * 180, accentColor.B * 180), 180)
 
     local iconCircle = makeFrame(row, {
         Size = UDim2.new(0, 38, 0, 38),
@@ -816,6 +878,7 @@ local function createBindKeyRow(parent, iconText, label, accentColor, onKey, ini
     })
     makeUICorner(iconCircle, 19)
     makeUIStroke(iconCircle, accentColor, 1, 0.55)
+    makeUIGradient(iconCircle, Color3.fromRGB(18, 16, 28), Color3.fromRGB(12, 10, 20), 135)
 
     makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -848,17 +911,25 @@ local function createBindKeyRow(parent, iconText, label, accentColor, onKey, ini
         Font = Enum.Font.SourceSansBold,
     })
     makeUICorner(keyBtn, 8)
+    makeUIGradient(keyBtn, accentColor, Color3.fromRGB(accentColor.R * 220, accentColor.G * 220, accentColor.B * 220), 135)
+    makeUIStroke(keyBtn, Colors.White, 1, 0.8)
 
     keyBtn.MouseButton1Click:Connect(function()
         if listening then
             listening = false
             keyBtn.Text = currentKey
             keyBtn.BackgroundColor3 = accentColor
+            local oldGrad3 = keyBtn:FindFirstChild("UIGradient")
+            if oldGrad3 then oldGrad3:Destroy() end
+            makeUIGradient(keyBtn, accentColor, Color3.fromRGB(accentColor.R * 220, accentColor.G * 220, accentColor.B * 220), 135)
             return
         end
         listening = true
         keyBtn.Text = "Press a key..."
-        keyBtn.BackgroundColor3 = Colors.Red
+        keyBtn.BackgroundColor3 = Colors.RedBright
+        local oldGrad = keyBtn:FindFirstChild("UIGradient")
+        if oldGrad then oldGrad:Destroy() end
+        makeUIGradient(keyBtn, Colors.RedBright, Colors.Red, 135)
 
         local conn
         conn = UserInputService.InputBegan:Connect(function(input)
@@ -868,6 +939,9 @@ local function createBindKeyRow(parent, iconText, label, accentColor, onKey, ini
                 currentKey = keyName
                 keyBtn.Text = keyName
                 keyBtn.BackgroundColor3 = accentColor
+                local oldGrad2 = keyBtn:FindFirstChild("UIGradient")
+                if oldGrad2 then oldGrad2:Destroy() end
+                makeUIGradient(keyBtn, accentColor, Color3.fromRGB(accentColor.R * 220, accentColor.G * 220, accentColor.B * 220), 135)
                 if onKey then onKey(keyName) end
                 conn:Disconnect()
             end
@@ -886,7 +960,13 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
         BackgroundColor3 = locked and Colors.Panel or Colors.Card,
     })
     makeUICorner(card, 9)
-    makeUIStroke(card, Colors.Border, 1, 0.9)
+    if locked then
+        makeUIGradient(card, Color3.fromRGB(16, 14, 24), Color3.fromRGB(10, 8, 16), 135)
+        makeUIStroke(card, Colors.Purple, 1, 0.92)
+    else
+        makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
+        makeUIStroke(card, Colors.Purple, 1, 0.8)
+    end
 
     if locked then
         local overlay = makeFrame(card, {
@@ -895,6 +975,8 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
             BackgroundTransparency = 0.45,
         })
         makeUICorner(overlay, 9)
+    else
+        local cardGlow = makeGlow(card, Colors.Purple, UDim2.new(0, 60, 0, 60), UDim2.new(1, -40, 0, -20), 0.94)
     end
 
     local iconCircle = makeFrame(card, {
@@ -903,7 +985,13 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
         BackgroundColor3 = locked and Color3.fromRGB(28, 28, 36) or Colors.PurpleDk,
     })
     makeUICorner(iconCircle, 23)
-    makeUIStroke(iconCircle, locked and Colors.Border or Colors.Purple, 1, 0)
+    if locked then
+        makeUIGradient(iconCircle, Color3.fromRGB(32, 30, 42), Color3.fromRGB(24, 22, 32), 135)
+        makeUIStroke(iconCircle, Colors.Purple, 1, 0.85)
+    else
+        makeUIGradient(iconCircle, Color3.fromRGB(80, 30, 160), Color3.fromRGB(50, 18, 100), 135)
+        makeUIStroke(iconCircle, Colors.PurpleBright, 1, 0.3)
+    end
 
     makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
@@ -945,7 +1033,8 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
             BackgroundColor3 = Color3.fromRGB(30, 30, 40),
         })
         makeUICorner(badge, 11)
-        makeUIStroke(badge, Colors.Border, 1, 0.88)
+        makeUIGradient(badge, Color3.fromRGB(36, 34, 48), Color3.fromRGB(24, 22, 34), 135)
+        makeUIStroke(badge, Colors.Purple, 1, 0.85)
         makeTextLabel(badge, {
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
@@ -970,19 +1059,27 @@ local function createPageHeader(parent, iconText, title, subtitle, accentColor)
         BorderSizePixel = 0,
     })
 
-    makeTextLabel(header, {
-        Size = UDim2.new(0, 26, 0, 26),
-        Position = UDim2.new(0, 18, 0, 14),
+    local iconBg = makeFrame(header, {
+        Size = UDim2.new(0, 36, 0, 36),
+        Position = UDim2.new(0, 14, 0, 8),
+        BackgroundColor3 = accentColor,
+        BackgroundTransparency = 0.85,
+    })
+    makeUICorner(iconBg, 10)
+    makeUIStroke(iconBg, accentColor, 1, 0.5)
+
+    makeTextLabel(iconBg, {
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = iconText,
-        TextColor3 = accentColor,
-        TextSize = 20,
+        TextColor3 = Colors.Text,
+        TextSize = 18,
         Font = Enum.Font.SourceSansBold,
     })
 
     makeTextLabel(header, {
-        Size = UDim2.new(1, -50, 0, 26),
-        Position = UDim2.new(0, 48, 0, 14),
+        Size = UDim2.new(1, -60, 0, 26),
+        Position = UDim2.new(0, 56, 0, 8),
         BackgroundTransparency = 1,
         Text = title,
         TextColor3 = Colors.Text,
@@ -1005,8 +1102,8 @@ local function createPageHeader(parent, iconText, title, subtitle, accentColor)
     local divider = makeFrame(parent, {
         Size = UDim2.new(1, -20, 0, 1),
         Position = UDim2.new(0, 10, 0, 50),
-        BackgroundColor3 = Colors.Border,
-        BackgroundTransparency = 0.87,
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.85,
     })
 
     return header
@@ -1068,7 +1165,17 @@ local function buildGUI()
         Visible = true,
     })
     makeUICorner(MainFrame, 12)
+    makeUIGradient(MainFrame, Colors.BgGrad1, Colors.BgGrad2, 135)
     State.OuterStroke = makeUIStroke(MainFrame, Colors.Purple, 1.5, 0)
+    -- Inner glow
+    local innerGlow = makeFrame(MainFrame, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.97,
+        BorderSizePixel = 0,
+        ZIndex = 0,
+    })
+    makeUICorner(innerGlow, 12)
 
     MainFrameScale = Instance.new("UIScale")
     MainFrameScale.Scale = 1
@@ -1081,14 +1188,27 @@ local function buildGUI()
         BorderSizePixel = 0,
     })
     makeUICorner(titleBar, 12)
+    makeUIGradient(titleBar, Colors.SidebarGrad1, Colors.SidebarGrad2, 180)
+
+    -- Bottom border accent
+    local titleBorder = makeFrame(titleBar, {
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, -1),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.85,
+        BorderSizePixel = 0,
+    })
 
     -- Clip bottom corners
     local titleClip = makeFrame(titleBar, {
         Size = UDim2.new(1, 0, 0, 12),
         Position = UDim2.new(0, 0, 1, -12),
-        BackgroundColor3 = Colors.Sidebar,
+        BackgroundColor3 = Colors.SidebarGrad2,
         BorderSizePixel = 0,
     })
+
+    -- Logo glow
+    local logoGlow = makeGlow(titleBar, Colors.Purple, UDim2.new(0, 50, 0, 50), UDim2.new(0, 6, 0.5, -25), 0.9)
 
     local logoCircle = makeFrame(titleBar, {
         Size = UDim2.new(0, 34, 0, 34),
@@ -1096,6 +1216,8 @@ local function buildGUI()
         BackgroundColor3 = Color3.fromRGB(100, 40, 200),
     })
     makeUICorner(logoCircle, 17)
+    makeUIGradient(logoCircle, Color3.fromRGB(120, 50, 220), Color3.fromRGB(80, 30, 160), 135)
+    makeUIStroke(logoCircle, Colors.PurpleBright, 1, 0.3)
     makeTextLabel(logoCircle, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -1111,6 +1233,17 @@ local function buildGUI()
         BackgroundTransparency = 1,
         Text = "DAYI SCRIPT HUB",
         TextColor3 = Colors.Text,
+        TextSize = 17,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    -- Gradient text effect on "HUB" part via separate label
+    local titleHub = makeTextLabel(titleBar, {
+        Size = UDim2.new(0, 60, 0, 20),
+        Position = UDim2.new(0, 56 + 135, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Colors.PurpleBright,
         TextSize = 17,
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSansBold,
@@ -1135,7 +1268,8 @@ local function buildGUI()
         BackgroundColor3 = Colors.BadgeBg,
     })
     makeUICorner(playerBadge, 8)
-    makeUIStroke(playerBadge, Colors.Border, 1, 0.82)
+    makeUIGradient(playerBadge, Color3.fromRGB(28, 24, 42), Color3.fromRGB(18, 16, 28), 135)
+    makeUIStroke(playerBadge, Colors.Purple, 1, 0.7)
 
     local avatarImage = Instance.new("ImageLabel")
     avatarImage.Size = UDim2.new(0, 28, 0, 28)
@@ -1181,7 +1315,8 @@ local function buildGUI()
         BackgroundColor3 = Colors.BadgeBg,
     })
     makeUICorner(versionBadge, 8)
-    makeUIStroke(versionBadge, Colors.Border, 1, 0.82)
+    makeUIGradient(versionBadge, Color3.fromRGB(28, 24, 42), Color3.fromRGB(18, 16, 28), 135)
+    makeUIStroke(versionBadge, Colors.Purple, 1, 0.7)
     makeTextLabel(versionBadge, {
         Size = UDim2.new(1, 0, 0, 20),
         Position = UDim2.new(0, 0, 0, 4),
@@ -1208,7 +1343,8 @@ local function buildGUI()
         BackgroundColor3 = Colors.BadgeBg,
     })
     makeUICorner(connBadge, 8)
-    makeUIStroke(connBadge, Colors.Border, 1, 0.82)
+    makeUIGradient(connBadge, Color3.fromRGB(24, 30, 28), Color3.fromRGB(16, 20, 18), 135)
+    makeUIStroke(connBadge, Colors.Green, 1, 0.7)
 
     local connDot = makeFrame(connBadge, {
         Size = UDim2.new(0, 8, 0, 8),
@@ -1216,6 +1352,16 @@ local function buildGUI()
         BackgroundColor3 = Colors.Green,
     })
     makeUICorner(connDot, 4)
+    -- Glow on connection dot
+    local connDotGlow = makeFrame(connBadge, {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(0, 8, 0.5, -8),
+        BackgroundColor3 = Colors.Green,
+        BackgroundTransparency = 0.7,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+    })
+    makeUICorner(connDotGlow, 8)
 
     makeTextLabel(connBadge, {
         Size = UDim2.new(1, -20, 0, 16),
@@ -1240,26 +1386,28 @@ local function buildGUI()
 
     -- Window controls
     local winCtrlMin = makeButton(titleBar, {
-        Size = UDim2.new(0, 24, 0, 24),
-        Position = UDim2.new(1, -52, 0.5, -12),
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(1, -56, 0.5, -14),
         BackgroundColor3 = Color3.fromRGB(22, 22, 34),
         Text = "—",
         TextColor3 = Colors.TextDim,
         TextSize = 13,
         Font = Enum.Font.SourceSansBold,
     })
-    makeUICorner(winCtrlMin, 4)
+    makeUICorner(winCtrlMin, 6)
+    makeUIStroke(winCtrlMin, Colors.Border, 1, 0.85)
 
     local winCtrlClose = makeButton(titleBar, {
-        Size = UDim2.new(0, 24, 0, 24),
-        Position = UDim2.new(1, -22, 0.5, -12),
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(1, -22, 0.5, -14),
         BackgroundColor3 = Color3.fromRGB(22, 22, 34),
         Text = "✕",
         TextColor3 = Colors.Red,
         TextSize = 13,
         Font = Enum.Font.SourceSansBold,
     })
-    makeUICorner(winCtrlClose, 4)
+    makeUICorner(winCtrlClose, 6)
+    makeUIStroke(winCtrlClose, Colors.Red, 1, 0.7)
 
     local function animateClose()
         State.UIVisible = false
@@ -1276,6 +1424,20 @@ local function buildGUI()
         notify("DAYI HUB", "UI hidden. Press RightShift to toggle.", 3)
     end)
     winCtrlMin.MouseButton1Click:Connect(animateClose)
+
+    -- Window control hover effects
+    winCtrlMin.MouseEnter:Connect(function()
+        TweenService:Create(winCtrlMin, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(40, 38, 52)}):Play()
+    end)
+    winCtrlMin.MouseLeave:Connect(function()
+        TweenService:Create(winCtrlMin, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 22, 34)}):Play()
+    end)
+    winCtrlClose.MouseEnter:Connect(function()
+        TweenService:Create(winCtrlClose, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 20, 20)}):Play()
+    end)
+    winCtrlClose.MouseLeave:Connect(function()
+        TweenService:Create(winCtrlClose, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 22, 34)}):Play()
+    end)
 
     --==== DRAGGING ====
     titleBar.Active = true
@@ -1307,8 +1469,9 @@ local function buildGUI()
         BackgroundColor3 = Colors.Sidebar,
         BorderSizePixel = 0,
     })
+    makeUIGradient(sidebar, Colors.SidebarGrad1, Colors.SidebarGrad2, 180)
 
-    local sidebarStroke = makeUIStroke(sidebar, Colors.Border, 1, 0.87)
+    local sidebarStroke = makeUIStroke(sidebar, Colors.Purple, 1, 0.88)
     sidebarStroke.LineJoinMode = Enum.LineJoinMode.Round
 
     local sidebarLayout = makeUIListLayout(sidebar, 2)
@@ -1333,6 +1496,10 @@ local function buildGUI()
             Text = "",
             LayoutOrder = i,
         })
+        if (td.name == activeTab) then
+            makeUIGradient(btn, Color3.fromRGB(30, 14, 56), Color3.fromRGB(18, 8, 34), 90)
+        end
+        makeUICorner(btn, 10)
 
         if locked then
             btn.Active = false
@@ -1340,9 +1507,11 @@ local function buildGUI()
         end
 
         local accentIndicator = makeFrame(btn, {
-            Size = UDim2.new(0, 3, 1, 0),
-            BackgroundColor3 = Colors.Purple,
+            Size = UDim2.new(0, 3, 1, -16),
+            Position = UDim2.new(0, 0, 0, 8),
+            BackgroundColor3 = Colors.PurpleBright,
             Visible = (td.name == activeTab),
+            ZIndex = 2,
         })
         makeUICorner(accentIndicator, 2)
 
@@ -1378,11 +1547,13 @@ local function buildGUI()
                 BackgroundColor3 = Colors.PurpleDk,
             })
             makeUICorner(badge, 9)
+            makeUIGradient(badge, Color3.fromRGB(60, 20, 110), Color3.fromRGB(40, 10, 80), 135)
+            makeUIStroke(badge, Colors.Purple, 1, 0.5)
             makeTextLabel(badge, {
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 Text = td.badge,
-                TextColor3 = Colors.Purple,
+                TextColor3 = Colors.PurpleBright,
                 TextSize = 9,
                 Font = Enum.Font.SourceSansBold,
             })
@@ -1395,6 +1566,8 @@ local function buildGUI()
                 BackgroundColor3 = Color3.fromRGB(60, 50, 20),
             })
             makeUICorner(lockBadge, 9)
+            makeUIGradient(lockBadge, Color3.fromRGB(70, 58, 22), Color3.fromRGB(50, 42, 16), 135)
+            makeUIStroke(lockBadge, Colors.Amber, 1, 0.6)
             makeTextLabel(lockBadge, {
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
@@ -1425,12 +1598,16 @@ local function buildGUI()
                 widgets.accent.Visible = false
                 widgets.icon.TextColor3 = Colors.TextDim
                 widgets.name.TextColor3 = Colors.TextDim
+                -- Remove gradient from old
+                local oldGrad = widgets.btn:FindFirstChild("UIGradient")
+                if oldGrad then oldGrad:Destroy() end
             end
             -- Select new
             activeTab = td.name
             btn.BackgroundColor3 = Colors.ActiveTab
+            makeUIGradient(btn, Color3.fromRGB(30, 14, 56), Color3.fromRGB(18, 8, 34), 90)
             accentIndicator.Visible = true
-            iconLabel.TextColor3 = Colors.Purple
+            iconLabel.TextColor3 = Colors.PurpleBright
             nameLabel.TextColor3 = Colors.Text
 
             -- Page transition animation: hide old, slide new in
@@ -1447,6 +1624,22 @@ local function buildGUI()
                 }):Play()
             end
         end)
+
+        -- Sidebar hover effects
+        if not locked then
+            btn.MouseEnter:Connect(function()
+                if activeTab ~= td.name then
+                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(14, 12, 22)}):Play()
+                    TweenService:Create(iconLabel, TweenInfo.new(0.15), {TextColor3 = Colors.PurpleBright}):Play()
+                end
+            end)
+            btn.MouseLeave:Connect(function()
+                if activeTab ~= td.name then
+                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Colors.Sidebar}):Play()
+                    TweenService:Create(iconLabel, TweenInfo.new(0.15), {TextColor3 = Colors.TextDim}):Play()
+                end
+            end)
+        end
     end
 
     --==== CONTENT AREA ====
@@ -1456,6 +1649,7 @@ local function buildGUI()
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
     })
+    makeUIGradient(ContentArea, Colors.BgGrad1, Colors.BgGrad2, 135)
 
     if Config.BackgroundParticles then
         createBackgroundParticles(ContentArea)
@@ -1468,7 +1662,8 @@ local function buildGUI()
         BackgroundColor3 = Colors.Sidebar,
         BorderSizePixel = 0,
     })
-    makeUIStroke(rightPanel, Colors.Border, 1, 0.87)
+    makeUIGradient(rightPanel, Colors.SidebarGrad1, Colors.SidebarGrad2, 180)
+    makeUIStroke(rightPanel, Colors.Purple, 1, 0.88)
 
     local rightLayout = makeUIListLayout(rightPanel, 10)
     rightLayout.Padding = UDim.new(0, 10)
@@ -1487,8 +1682,11 @@ local function buildGUI()
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(premCard, 10)
-    makeUIStroke(premCard, Colors.Border, 1, 0.88)
+    makeUIGradient(premCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(premCard, Colors.Purple, 1, 0.8)
     premCard.Position = UDim2.new(0, 14, 0, 14)
+    -- Glow orb
+    local premGlow = makeGlow(premCard, Colors.Purple, UDim2.new(0, 80, 0, 80), UDim2.new(1, -50, 0, -20), 0.92)
 
     makeTextLabel(premCard, {
         Size = UDim2.new(1, -20, 0, 16),
@@ -1508,6 +1706,7 @@ local function buildGUI()
     })
     makeUICorner(premIcon, 31)
     makeUIStroke(premIcon, planColor, 1.5, 0)
+    makeUIGradient(premIcon, Color3.fromRGB(planColor.R * 60, planColor.G * 60, planColor.B * 60), Color3.fromRGB(planColor.R * 30, planColor.G * 30, planColor.B * 30), 135)
     makeTextLabel(premIcon, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -1533,6 +1732,8 @@ local function buildGUI()
         BackgroundColor3 = planBadgeBg,
     })
     makeUICorner(premBadge, 9)
+    makeUIGradient(premBadge, Color3.fromRGB(planBadgeBg.R * 150, planBadgeBg.G * 150, planBadgeBg.B * 150), planBadgeBg, 135)
+    makeUIStroke(premBadge, planBadgeText, 1, 0.5)
     makeTextLabel(premBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -1558,7 +1759,8 @@ local function buildGUI()
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(sysCard, 10)
-    makeUIStroke(sysCard, Colors.Border, 1, 0.88)
+    makeUIGradient(sysCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(sysCard, Colors.Purple, 1, 0.82)
     sysCard.Position = UDim2.new(0, 14, 0, 168)
 
     makeTextLabel(sysCard, {
@@ -1660,7 +1862,8 @@ local function buildGUI()
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(qaCard, 10)
-    makeUIStroke(qaCard, Colors.Border, 1, 0.88)
+    makeUIGradient(qaCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(qaCard, Colors.Purple, 1, 0.82)
     qaCard.Position = UDim2.new(0, 14, 0, 296)
 
     makeTextLabel(qaCard, {
@@ -1699,8 +1902,13 @@ local function buildGUI()
             TextSize = 12,
             Font = Enum.Font.SourceSansBold,
         })
-        makeUICorner(qaBtn, 6)
-        if not qa.filled then makeUIStroke(qaBtn, Colors.Border, 1, 0.85) end
+        makeUICorner(qaBtn, 8)
+        if qa.filled then
+            makeUIGradient(qaBtn, Colors.PurpleBtnHov, Colors.PurpleBtn, 135)
+            makeUIStroke(qaBtn, Colors.Purple, 1, 0.5)
+        else
+            makeUIStroke(qaBtn, Colors.Purple, 1, 0.8)
+        end
 
         qaBtn.MouseButton1Click:Connect(qa.action)
     end
@@ -1713,6 +1921,15 @@ local function buildGUI()
         BorderSizePixel = 0,
     })
     makeUICorner(statusBar, 12)
+    makeUIGradient(statusBar, Color3.fromRGB(5, 5, 9), Color3.fromRGB(3, 3, 6), 180)
+    -- Top accent line
+    local statusAccent = makeFrame(statusBar, {
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.85,
+        BorderSizePixel = 0,
+    })
     local statusClip = makeFrame(statusBar, {
         Size = UDim2.new(1, 0, 0, 12),
         Position = UDim2.new(0, 0, 0, 0),
@@ -1854,6 +2071,7 @@ local function createScrollContent(page, topOffset)
         BorderSizePixel = 0,
         ScrollBarThickness = 6,
     })
+    makeUIGradient(scroll, Colors.BgGrad1, Colors.BgGrad2, 135)
     local padding = Instance.new("UIPadding")
     padding.PaddingLeft = UDim.new(0, 10)
     padding.PaddingRight = UDim.new(0, 10)
@@ -1994,7 +2212,10 @@ local function buildPremiumPage()
         BackgroundColor3 = Colors.PurpleDk,
     })
     makeUICorner(banner, 12)
-    makeUIStroke(banner, Colors.Purple, 1.5, 0)
+    makeUIGradient(banner, Color3.fromRGB(55, 20, 100), Color3.fromRGB(30, 10, 60), 135)
+    makeUIStroke(banner, Colors.PurpleBright, 1.5, 0.2)
+    -- Banner glow orb
+    local bannerGlow = makeGlow(banner, Colors.Purple, UDim2.new(0, 100, 0, 100), UDim2.new(1, -60, 0, -30), 0.9)
 
     local bannerIcon = makeFrame(banner, {
         Size = UDim2.new(0, 56, 0, 56),
@@ -2002,7 +2223,8 @@ local function buildPremiumPage()
         BackgroundColor3 = Colors.PurpleBg,
     })
     makeUICorner(bannerIcon, 28)
-    makeUIStroke(bannerIcon, Colors.Purple, 1.5, 0)
+    makeUIGradient(bannerIcon, Color3.fromRGB(80, 30, 160), Color3.fromRGB(50, 18, 100), 135)
+    makeUIStroke(bannerIcon, Colors.PurpleBright, 1.5, 0.3)
     makeTextLabel(bannerIcon, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -2041,6 +2263,8 @@ local function buildPremiumPage()
         BackgroundColor3 = Colors.GreenDk,
     })
     makeUICorner(activeBadge, 9)
+    makeUIGradient(activeBadge, Color3.fromRGB(24, 60, 36), Color3.fromRGB(16, 40, 24), 135)
+    makeUIStroke(activeBadge, Colors.Green, 1, 0.5)
     makeTextLabel(activeBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -2123,7 +2347,8 @@ local function buildPremiumPage()
         BackgroundColor3 = Colors.Panel,
     })
     makeUICorner(noticeCard, 10)
-    makeUIStroke(noticeCard, Colors.Border, 1, 0.9)
+    makeUIGradient(noticeCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(noticeCard, Colors.Purple, 1, 0.85)
     makeTextLabel(noticeCard, {
         Size = UDim2.new(0, 32, 1, 0),
         Position = UDim2.new(0, 12, 0, 0),
@@ -2161,7 +2386,8 @@ createColorPickerRow = function(parent, iconText, label, accentColor, themes, cu
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(row, 10)
-    makeUIStroke(row, Colors.Border, 1, 0.9)
+    makeUIGradient(row, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(row, Colors.Purple, 1, 0.85)
 
     local accentBar = makeFrame(row, {
         Size = UDim2.new(0, 4, 1, -16),
@@ -2169,6 +2395,7 @@ createColorPickerRow = function(parent, iconText, label, accentColor, themes, cu
         BackgroundColor3 = accentColor,
     })
     makeUICorner(accentBar, 2)
+    makeUIGradient(accentBar, accentColor, Color3.fromRGB(accentColor.R * 180, accentColor.G * 180, accentColor.B * 180), 180)
 
     local iconCircle = makeFrame(row, {
         Size = UDim2.new(0, 36, 0, 36),
@@ -2177,6 +2404,7 @@ createColorPickerRow = function(parent, iconText, label, accentColor, themes, cu
     })
     makeUICorner(iconCircle, 18)
     makeUIStroke(iconCircle, accentColor, 1, 0.55)
+    makeUIGradient(iconCircle, Color3.fromRGB(18, 16, 28), Color3.fromRGB(12, 10, 20), 135)
     makeTextLabel(iconCircle, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -2360,7 +2588,14 @@ local function buildChangelogPage()
             AutomaticSize = Enum.AutomaticSize.Y,
         })
         makeUICorner(card, 10)
-        makeUIStroke(card, Colors.Border, 1, 0.9)
+        makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
+        if update.badge == "NEW" then
+            makeUIStroke(card, Colors.Green, 1, 0.7)
+        elseif update.badge == "MAJOR" then
+            makeUIStroke(card, Colors.Purple, 1, 0.7)
+        else
+            makeUIStroke(card, Colors.Purple, 1, 0.85)
+        end
 
         local cardLayout = makeUIListLayout(card, 6)
         cardLayout.Padding = UDim.new(0, 6)
@@ -2503,7 +2738,9 @@ local function buildCreditsPage()
         BackgroundColor3 = Colors.PurpleDk,
     })
     makeUICorner(banner, 10)
-    makeUIStroke(banner, Colors.Purple, 1.5, 0)
+    makeUIGradient(banner, Color3.fromRGB(50, 18, 100), Color3.fromRGB(25, 10, 50), 135)
+    makeUIStroke(banner, Colors.PurpleBright, 1.5, 0.2)
+    local bannerGlow = makeGlow(banner, Colors.Purple, UDim2.new(0, 80, 0, 80), UDim2.new(1, -50, 0, -20), 0.92)
     makeTextLabel(banner, {
         Size = UDim2.new(0, 40, 1, 0),
         Position = UDim2.new(0, 14, 0, 0),
@@ -2547,15 +2784,24 @@ local function buildCreditsPage()
             BackgroundColor3 = Colors.Card,
         })
         makeUICorner(card, 10)
-        makeUIStroke(card, Colors.Border, 1, 0.9)
+        makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
+        makeUIStroke(card, dev.accent, 1, 0.7)
+
+        local accentBar = makeFrame(card, {
+            Size = UDim2.new(0, 3, 1, 0),
+            BackgroundColor3 = dev.accent,
+        })
+        makeUICorner(accentBar, 2)
+        makeUIGradient(accentBar, dev.accent, Color3.fromRGB(dev.accent.R * 180, dev.accent.G * 180, dev.accent.B * 180), 180)
 
         local iconCircle = makeFrame(card, {
             Size = UDim2.new(0, 44, 0, 44),
-            Position = UDim2.new(0, 12, 0.5, -22),
+            Position = UDim2.new(0, 14, 0.5, -22),
             BackgroundColor3 = Color3.fromRGB(30, 30, 40),
         })
         makeUICorner(iconCircle, 22)
-        makeUIStroke(iconCircle, dev.accent, 1.5, 0)
+        makeUIGradient(iconCircle, Color3.fromRGB(40, 36, 52), Color3.fromRGB(28, 26, 38), 135)
+        makeUIStroke(iconCircle, dev.accent, 1.5, 0.3)
         makeTextLabel(iconCircle, {
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
@@ -2593,7 +2839,8 @@ local function buildCreditsPage()
         BackgroundTransparency = 0.7,
     })
     makeUICorner(discordCard, 10)
-    makeUIStroke(discordCard, Color3.fromRGB(88, 101, 242), 1.5, 0.3)
+    makeUIGradient(discordCard, Color3.fromRGB(100, 115, 255), Color3.fromRGB(60, 73, 200), 135)
+    makeUIStroke(discordCard, Color3.fromRGB(88, 101, 242), 1.5, 0.2)
     makeTextLabel(discordCard, {
         Size = UDim2.new(0, 30, 1, 0),
         Position = UDim2.new(0, 12, 0, 0),
