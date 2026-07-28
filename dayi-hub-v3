@@ -2441,13 +2441,20 @@ local function buildCreditsPage()
 end
 
 buildPages = function()
-    buildGraphicsPage()
-    buildVisualPage()
-    buildPlayerPage()
-    buildPremiumPage()
-    buildSettingsPage()
-    buildChangelogPage()
-    buildCreditsPage()
+    local function safeBuild(name, fn)
+        local ok, err = pcall(fn)
+        if not ok then
+            warn("[DAYI HUB] Failed to build " .. name .. " page: " .. tostring(err))
+        end
+    end
+
+    safeBuild("Graphics",  buildGraphicsPage)
+    safeBuild("Visual",    buildVisualPage)
+    safeBuild("Player",    buildPlayerPage)
+    safeBuild("Premium",   buildPremiumPage)
+    safeBuild("Settings",  buildSettingsPage)
+    safeBuild("Changelog", buildChangelogPage)
+    safeBuild("Credits",   buildCreditsPage)
 
     -- Show default page
     if PageFrames["Graphics"] then
