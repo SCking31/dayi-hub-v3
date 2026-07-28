@@ -1,6 +1,6 @@
 --[[
 ══════════════════════════════════════════════════════════════════════════════
-    DAYI SCRIPT HUB v10.0
+    DAYI SCRIPT HUB v10.1
     Premium Utility Hub
     Owner & Developer: syfix
     Discord: discord.gg/dayikey
@@ -1175,7 +1175,7 @@ local function buildGUI()
         { name = "Graphics", icon = "🖥️" },
         { name = "Visual",   icon = "👁️" },
         { name = "Player",   icon = "👤" },
-        { name = "Premium",  icon = "👑", badge = "NEW" },
+        { name = "Premium",  icon = "👑", badge = "NEW", premiumOnly = true },
         { name = "Settings",  icon = "⚙️" },
         { name = "Changelog", icon = "📝" },
         { name = "Credits",   icon = "🩷" },
@@ -1184,12 +1184,18 @@ local function buildGUI()
     activeTab = activeTab or "Graphics"
 
     for i, td in ipairs(tabDefs) do
+        local locked = td.premiumOnly and not isPremiumUser()
         local btn = makeButton(sidebar, {
             Size = UDim2.new(1, 0, 0, 52),
             BackgroundColor3 = (td.name == activeTab) and Colors.ActiveTab or Colors.Sidebar,
             Text = "",
             LayoutOrder = i,
         })
+
+        if locked then
+            btn.Active = false
+            btn.AutoButtonColor = false
+        end
 
         local accentIndicator = makeFrame(btn, {
             Size = UDim2.new(0, 3, 1, 0),
@@ -1202,11 +1208,15 @@ local function buildGUI()
             Size = UDim2.new(0, 28, 1, 0),
             Position = UDim2.new(0, 16, 0, 0),
             BackgroundTransparency = 1,
-            Text = td.icon,
+            Text = locked and "🔒" or td.icon,
             TextColor3 = (td.name == activeTab) and Colors.Purple or Colors.TextDim,
             TextSize = 17,
             Font = Enum.Font.SourceSansBold,
         })
+
+        if locked then
+            iconLabel.TextColor3 = Colors.TextFaint
+        end
 
         local nameLabel = makeTextLabel(btn, {
             Size = UDim2.new(1, -50, 1, 0),
@@ -1219,7 +1229,7 @@ local function buildGUI()
             Font = Enum.Font.SourceSansBold,
         })
 
-        if td.badge then
+        if td.badge and not locked then
             local badge = makeFrame(btn, {
                 Size = UDim2.new(0, 36, 0, 18),
                 Position = UDim2.new(1, -42, 0.5, -9),
@@ -1236,6 +1246,23 @@ local function buildGUI()
             })
         end
 
+        if locked then
+            local lockBadge = makeFrame(btn, {
+                Size = UDim2.new(0, 56, 0, 18),
+                Position = UDim2.new(1, -62, 0.5, -9),
+                BackgroundColor3 = Color3.fromRGB(60, 50, 20),
+            })
+            makeUICorner(lockBadge, 9)
+            makeTextLabel(lockBadge, {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = "PREMIUM",
+                TextColor3 = Colors.Amber,
+                TextSize = 9,
+                Font = Enum.Font.SourceSansBold,
+            })
+        end
+
         SidebarButtons[td.name] = {
             btn = btn,
             accent = accentIndicator,
@@ -1244,6 +1271,10 @@ local function buildGUI()
         }
 
         btn.MouseButton1Click:Connect(function()
+            if locked then
+                notify("Premium Required", "Upgrade to Premium to access this tab.", 3)
+                return
+            end
             if activeTab == td.name then return end
             local oldTab = activeTab
             -- Deselect old
@@ -1545,7 +1576,7 @@ local function buildGUI()
 
     local statusItems = {
         { icon = "💬", label = "Discord",    val = "discord.gg/QFwWBWM2j", color = Colors.Purple, live = false },
-        { icon = "⌨️", label = "Build",       val = "v10.0",              color = Colors.Purple, live = false },
+        { icon = "⌨️", label = "Build",       val = "v10.1",              color = Colors.Purple, live = false },
         { icon = "📊", label = "FPS",          val = "-- FPS",             color = Colors.Green,  live = "fps" },
         { icon = "📡", label = "Ping",         val = "-- ms",              color = Colors.Green,  live = "ping" },
     }
@@ -2047,61 +2078,65 @@ local function buildChangelogPage()
 
     local updates = {
         {
-            version = "v1.1",
-            date = "Latest Update",
+            version = "v10.1",
+            date = "2025-07-28",
             badge = "NEW",
             badgeColor = Colors.Green,
             sections = {
                 { type = "added", items = {
-                    "First Launch onboarding flow (4-step welcome screen)",
-                    "Config persistence — settings now save and load automatically",
-                    "Changelog page to track updates",
+                    "Free plan users are now blocked from accessing the Premium tab",
+                    "Premium tab shows lock icon and PREMIUM badge for free users",
+                    "Account Status card in right panel reflects user plan",
                 }},
-                { type = "changed", items = {
-                    "Disclaimer warning now proceeds to onboarding on first launch",
-                    "Init flow restructured for cleaner startup sequence",
+                { type = "fixed", items = {
+                    "Settings page now renders correctly",
+                    "Credits page now renders correctly",
+                    "Changelog page now renders correctly",
                 }},
             },
         },
         {
-            version = "v1.0.1",
-            date = "Patch",
+            version = "v10.0",
+            date = "2025-07-28",
             badge = nil,
             sections = {
                 { type = "added", items = {
-                    "Disclaimer / warning UI before script loads",
-                    "Accept button required to proceed to main UI",
+                    "Premium Utility Hub redesign with aurora background",
+                    "2D on-screen circle for aimbot (replaces 3D part)",
+                    "Circle color picker in Premium tab",
+                    "Key system with Free, Premium, and Developer plans",
+                    "Settings page with UI scale, animations, and bind keys",
                 }},
-                { type = "changed", items = {
-                    "Startup sequence now shows warning before building UI",
+                { type = "fixed", items = {
+                    "Fly script rewritten for better stability",
                 }},
             },
         },
         {
-            version = "v1.0",
-            date = "Major Release",
+            version = "v9.5",
+            date = "2025-07-15",
+            badge = nil,
+            sections = {
+                { type = "added", items = {
+                    "Accent theme system (7 colors)",
+                    "Mobile aimbot support",
+                }},
+                { type = "fixed", items = {
+                    "ESP rendering performance improvements",
+                    "Config save/load reliability",
+                }},
+            },
+        },
+        {
+            version = "v9.0",
+            date = "2025-06-30",
             badge = "MAJOR",
             badgeColor = Colors.Purple,
             sections = {
                 { type = "added", items = {
-                    "Graphics page: Unlimited Zoom, FPS Booster, VFX Remover",
-                    "Graphics page: Shadow, Light, Water, Grass Optimizers",
-                    "Visual page: Wallhack ESP, Skeleton ESP, Box/Name ESP",
-                    "Visual page: Aimbot, Mobile Aimbot, FOV Circle",
-                    "Visual page: Bind Key, Target selection, Circle Radius",
-                    "Player page: Speed Hack, Walk Speed slider, Bunny Hop",
-                    "Player page: Fly Mode, Fly Speed, Noclip",
-                    "Premium page: UI Accent Color customization (7 themes)",
-                    "Settings page: Toggle UI key binding",
-                    "Credits page with developer info and Discord link",
-                    "Right panel: Premium status, System info, Quick actions",
-                    "Animated page transitions and UI hover effects",
-                    "Mobile support for aimbot",
-                    "Notification system",
-                }},
-                { type = "changed", items = {
-                    "Complete UI redesign with dark theme and accent colors",
-                    "Sidebar navigation with icons and active indicators",
+                    "Initial Graphics, Visual, and Player pages",
+                    "Right panel with system info and quick actions",
+                    "Status bar with FPS and ping display",
                 }},
             },
         },
@@ -2289,7 +2324,7 @@ local function buildCreditsPage()
         Size = UDim2.new(1, -60, 0, 16),
         Position = UDim2.new(0, 56, 0, 42),
         BackgroundTransparency = 1,
-        Text = "v10.0 — Premium Utility Hub",
+        Text = "v10.1 — Premium Utility Hub",
         TextColor3 = Colors.TextDim,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -4128,11 +4163,11 @@ local function init()
 
         applyAccentTheme(Config.AccentTheme)
         local planInfo = PlanDisplay[UserPlan] or PlanDisplay.free
-        notify("DAYI HUB v10.0", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
+        notify("DAYI HUB v10.1", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
-        print("[DAYI HUB] v10.0 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
+        print("[DAYI HUB] v10.1 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
         print("[DAYI HUB] Discord: discord.gg/QFwWBWM2j")
     end
 
