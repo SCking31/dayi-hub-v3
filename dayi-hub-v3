@@ -982,7 +982,7 @@ local function buildGUI()
         Visible = true,
     })
     makeUICorner(MainFrame, 12)
-    makeUIStroke(MainFrame, Colors.Purple, 1.5, 0)
+    State.OuterStroke = makeUIStroke(MainFrame, Colors.Purple, 1.5, 0)
 
     MainFrameScale = Instance.new("UIScale")
     MainFrameScale.Scale = 1
@@ -3263,36 +3263,19 @@ local function toggleRGBAccent()
         State.RGBConnection = nil
     end
     if not Config.RGBAccent then
-        applyAccentTheme(Config.AccentTheme or "Purple")
-        destroyOldGui()
-        PageFrames = {}
-        SidebarButtons = {}
-        buildGUI()
-        buildPages()
-        if PageFrames["Premium"] then PageFrames["Premium"].Visible = true end
+        if State.OuterStroke and State.OuterStroke.Parent then
+            local theme = AccentThemes[Config.AccentTheme or "Purple"]
+            State.OuterStroke.Color = theme and theme.main or Colors.Purple
+        end
         return
     end
-    State.AccentFrames = {}
-    State.AccentStrokes = {}
-    local accent = Colors.Purple
-    if MainFrame then
-        for _, desc in ipairs(MainFrame:GetDescendants()) do
-            if desc:IsA("Frame") and desc.BackgroundColor3 == accent then
-                table.insert(State.AccentFrames, desc)
-            elseif desc:IsA("UIStroke") and desc.Color == accent then
-                table.insert(State.AccentStrokes, desc)
-            end
-        end
-    end
+    if not (State.OuterStroke and State.OuterStroke.Parent) then return end
     local hue = 0
     State.RGBConnection = RunService.Heartbeat:Connect(function()
         hue = (hue + (Config.RGBSpeed or 0.003)) % 1
-        local rgb = Color3.fromHSV(hue, 0.85, 1)
-        for _, f in ipairs(State.AccentFrames) do
-            if f and f.Parent then f.BackgroundColor3 = rgb end
-        end
-        for _, s in ipairs(State.AccentStrokes) do
-            if s and s.Parent then s.Color = rgb end
+        local rgb = Color3.fromHSV(hue, 1, 1)
+        if State.OuterStroke and State.OuterStroke.Parent then
+            State.OuterStroke.Color = rgb
         end
     end)
 end
