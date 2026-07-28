@@ -230,6 +230,7 @@ local function keyNameToKeyCode(name)
     return nil
 end
 
+local NotificationContainer
 local function notify(title, text, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
@@ -237,6 +238,71 @@ local function notify(title, text, duration)
             Text = text or "",
             Duration = duration or 3,
         })
+    end)
+    -- Also show animated toast if GUI is ready
+    pcall(function()
+        if not ScreenGui then return end
+        if not NotificationContainer then
+            NotificationContainer = makeFrame(ScreenGui, {
+                Size = UDim2.new(0, 320, 1, 0),
+                Position = UDim2.new(1, -340, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+            })
+            makeUIListLayout(NotificationContainer, 8)
+        end
+        local toast = makeFrame(NotificationContainer, {
+            Size = UDim2.new(1, 0, 0, 64),
+            BackgroundColor3 = Colors.Card,
+            BackgroundTransparency = 0.1,
+            BorderSizePixel = 0,
+            ClipsDescendants = true,
+        })
+        makeUICorner(toast, 10)
+        makeUIGradient(toast, Colors.CardGrad1, Colors.CardGrad2, 135)
+        makeUIStroke(toast, Colors.Purple, 1, 0.7)
+        -- Accent bar
+        local accent = makeFrame(toast, {
+            Size = UDim2.new(0, 3, 1, 0),
+            BackgroundColor3 = Colors.PurpleBright,
+            BorderSizePixel = 0,
+        })
+        makeUICorner(accent, 2)
+        makeTextLabel(toast, {
+            Size = UDim2.new(1, -20, 0, 20),
+            Position = UDim2.new(0, 12, 0, 10),
+            BackgroundTransparency = 1,
+            Text = title or "DAYI HUB",
+            TextColor3 = Colors.PurpleBright,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeTextLabel(toast, {
+            Size = UDim2.new(1, -20, 0, 18),
+            Position = UDim2.new(0, 12, 0, 32),
+            BackgroundTransparency = 1,
+            Text = text or "",
+            TextColor3 = Colors.Text,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+        -- Slide in from right
+        toast.Position = UDim2.new(1, 0, 0, 0)
+        toast.BackgroundTransparency = 1
+        TweenService:Create(toast, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 0.1,
+        }):Play()
+        -- Auto dismiss
+        task.delay(duration or 3, function()
+            TweenService:Create(toast, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                Position = UDim2.new(1, 0, 0, 0),
+                BackgroundTransparency = 1,
+            }):Play()
+            task.delay(0.3, function() toast:Destroy() end)
+        end)
     end)
 end
 
@@ -392,6 +458,119 @@ local function makeGlow(parent, color, size, pos, transparency)
     return glow
 end
 
+--==========================================================================
+-- ADVANCED ANIMATION HELPERS
+--==========================================================================
+local function playSpringTween(guiObject, props, stiffness, damping)
+    local style = Enum.EasingStyle.Back
+    local dir = Enum.EasingDirection.Out
+    if stiffness == "soft" then
+        style = Enum.EasingStyle.Quad
+        dir = Enum.EasingDirection.Out
+    elseif stiffness == "elastic" then
+        style = Enum.EasingStyle.Back
+        dir = Enum.EasingDirection.Out
+    elseif stiffness == "snappy" then
+        style = Enum.EasingStyle.Quint
+        dir = Enum.EasingDirection.Out
+    elseif stiffness == "bounce" then
+        style = Enum.EasingStyle.Bounce
+        dir = Enum.EasingDirection.Out
+    end
+    local duration = damping or 0.35
+    TweenService:Create(guiObject, TweenInfo.new(duration, style, dir), props):Play()
+end
+
+local function playRipple(parent, x, y, color)
+    local ripple = makeFrame(parent, {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0, x, 0, y),
+        BackgroundColor3 = color or Colors.White,
+        BackgroundTransparency = 0.6,
+        BorderSizePixel = 0,
+        ZIndex = 5,
+    })
+    makeUICorner(ripple, 100)
+    TweenService:Create(ripple, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 300, 0, 300),
+        Position = UDim2.new(0, x - 150, 0, y - 150),
+        BackgroundTransparency = 1,
+    }):Play()
+    task.delay(0.5, function() ripple:Destroy() end)
+end
+
+local function addHoverLift(guiObject, liftAmount, scaleAmount)
+    liftAmount = liftAmount or -2
+    scaleAmount = scaleAmount or 1.02
+    local origPos = guiObject.Position
+    guiObject.MouseEnter:Connect(function()
+        playSpringTween(guiObject, {
+            Position = UDim2.new(origPos.X.Scale, origPos.X.Offset, origPos.Y.Scale, origPos.Y.Offset + liftAmount),
+        }, "elastic", 0.25)
+    end)
+    guiObject.MouseLeave:Connect(function()
+        playSpringTween(guiObject, {
+            Position = origPos,
+        }, "elastic", 0.25)
+    end)
+end
+
+local function addGlowPulse(guiObject, baseTransparency, pulseAmount, speed)
+    baseTransparency = baseTransparency or 0.9
+    pulseAmount = pulseAmount or 0.05
+    speed = speed or 2
+    task.spawn(function()
+        local t = 0
+        while guiObject and guiObject.Parent do
+            t = t + RunService.RenderStepped:Wait()
+            guiObject.BackgroundTransparency = baseTransparency + math.sin(t * speed) * pulseAmount
+        end
+    end)
+end
+
+local function addFloatAnim(guiObject, amplitude, speed, offset)
+    amplitude = amplitude or 3
+    speed = speed or 1.5
+    offset = offset or 0
+    local origY = guiObject.Position.Y.Offset
+    task.spawn(function()
+        local t = offset
+        while guiObject and guiObject.Parent do
+            t = t + RunService.RenderStepped:Wait()
+            guiObject.Position = UDim2.new(
+                guiObject.Position.X.Scale, guiObject.Position.X.Offset,
+                guiObject.Position.Y.Scale, origY + math.sin(t * speed) * amplitude
+            )
+        end
+    end)
+end
+
+local function addRippleClick(button, color)
+    button.MouseButton1Click:Connect(function()
+        local x = math.random(0, button.AbsoluteSize.X)
+        local y = math.random(0, button.AbsoluteSize.Y)
+        playRipple(button, x, y, color or Colors.PurpleBright)
+    end)
+end
+
+local function staggerChildren(parent, delayPerItem)
+    delayPerItem = delayPerItem or 0.04
+    task.spawn(function()
+        for _, child in ipairs(parent:GetChildren()) do
+            if child:IsA("GuiObject") and child.Name ~= "UIGradient" and child.Name ~= "UICorner" and child.Name ~= "UIStroke" and child.Name ~= "UIListLayout" and child.Name ~= "UIPadding" and child.Name ~= "UIGridLayout" then
+                child.BackgroundTransparency = 1
+                local origSize = child.Size
+                child.Size = UDim2.new(0, 0, 0, 0)
+                task.wait(delayPerItem)
+                playSpringTween(child, {
+                    Size = origSize,
+                    BackgroundTransparency = 0,
+                }, "elastic", 0.4)
+            end
+        end
+    end)
+end
+
 local function makeScrollFrame(parent, props)
     local f = Instance.new("ScrollingFrame")
     f.Parent = parent
@@ -403,6 +582,15 @@ local function makeScrollFrame(parent, props)
         f[k] = v
     end
     return f
+end
+
+local function addRowHover(row, accentColor)
+    row.MouseEnter:Connect(function()
+        playSpringTween(row, {BackgroundColor3 = Color3.fromRGB(28, 26, 42)}, "soft", 0.2)
+    end)
+    row.MouseLeave:Connect(function()
+        playSpringTween(row, {BackgroundColor3 = Colors.Card}, "soft", 0.2)
+    end)
 end
 
 --==========================================================================
@@ -437,9 +625,18 @@ local function createToggle(parent, defaultOn, onChange)
         if on then
             makeUIGradient(btn, Colors.Green, Color3.fromRGB(16, 185, 129), 135)
         end
-        TweenService:Create(knob, TweenInfo.new(0.15), {
+        -- Spring bounce for knob
+        playSpringTween(knob, {
             Position = on and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
-        }):Play()
+        }, "elastic", 0.4)
+        -- Knob scale punch
+        local origSize = knob.Size
+        playSpringTween(knob, {Size = UDim2.new(0, 22, 0, 22)}, "snappy", 0.1)
+        task.delay(0.1, function()
+            playSpringTween(knob, {Size = origSize}, "elastic", 0.3)
+        end)
+        -- Ripple
+        playRipple(btn, 22, 12, on and Colors.Green or Colors.ToggleOff)
         if onChange then onChange(on) end
     end)
 
@@ -497,6 +694,7 @@ local function createToggleRow(parent, iconText, label, accentColor, defaultOn, 
     local toggle = createToggle(row, defaultOn, onChange)
     toggle.Position = UDim2.new(1, -58, 0.5, -12)
 
+    addRowHover(row, accentColor)
     return row
 end
 
@@ -756,6 +954,9 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             updateValue(input.Position.X)
+            -- Knob scale punch on grab
+            playSpringTween(knob, {Size = UDim2.new(0, 20, 0, 20)}, "elastic", 0.15)
+            playSpringTween(knob, {BackgroundTransparency = 0}, "snappy", 0.1)
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -764,11 +965,14 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
             dragging = false
+            -- Knob scale release
+            playSpringTween(knob, {Size = UDim2.new(0, 14, 0, 14)}, "elastic", 0.3)
         end
     end)
 
+    addRowHover(row, accentColor)
     return row
 end
 
@@ -842,10 +1046,17 @@ local function createDropdownRow(parent, iconText, label, options, defaultVal, a
     valueBtn.MouseButton1Click:Connect(function()
         currentIndex = currentIndex % #options + 1
         current = options[currentIndex]
+        -- Animate text change with scale punch
+        playSpringTween(valueBtn, {Size = UDim2.new(0, 96, 0, 32)}, "elastic", 0.15)
+        task.delay(0.15, function()
+            playSpringTween(valueBtn, {Size = UDim2.new(0, 90, 0, 30)}, "elastic", 0.3)
+        end)
         valueBtn.Text = current
+        playRipple(valueBtn, 45, 15, accentColor)
         if onSelect then onSelect(current) end
     end)
 
+    addRowHover(row, accentColor)
     return row
 end
 
@@ -948,6 +1159,7 @@ local function createBindKeyRow(parent, iconText, label, accentColor, onKey, ini
         end)
     end)
 
+    addRowHover(row, accentColor)
     return row
 end
 
@@ -1046,6 +1258,17 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
     else
         local toggle = createToggle(card, defaultOn, onChange)
         toggle.Position = UDim2.new(1, -58, 0.5, -12)
+    end
+
+    -- Feature card hover lift
+    if not locked then
+        addHoverLift(card, -3, 1.01)
+        card.MouseEnter:Connect(function()
+            playSpringTween(card, {BackgroundColor3 = Color3.fromRGB(28, 26, 42)}, "soft", 0.2)
+        end)
+        card.MouseLeave:Connect(function()
+            playSpringTween(card, {BackgroundColor3 = Colors.Card}, "soft", 0.2)
+        end)
     end
 end
 
@@ -1209,6 +1432,7 @@ local function buildGUI()
 
     -- Logo glow
     local logoGlow = makeGlow(titleBar, Colors.Purple, UDim2.new(0, 50, 0, 50), UDim2.new(0, 6, 0.5, -25), 0.9)
+    addGlowPulse(logoGlow, 0.88, 0.08, 2)
 
     local logoCircle = makeFrame(titleBar, {
         Size = UDim2.new(0, 34, 0, 34),
@@ -1362,6 +1586,7 @@ local function buildGUI()
         ZIndex = 1,
     })
     makeUICorner(connDotGlow, 8)
+    addGlowPulse(connDotGlow, 0.7, 0.15, 3)
 
     makeTextLabel(connBadge, {
         Size = UDim2.new(1, -20, 0, 16),
@@ -1411,32 +1636,62 @@ local function buildGUI()
 
     local function animateClose()
         State.UIVisible = false
-        local tween = TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85})
-        tween:Play()
-        task.delay(0.2, function()
+        -- Multi-stage close: shrink + fade + rotate slightly
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = 0.92}):Play()
+        TweenService:Create(MainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            BackgroundTransparency = 0.5,
+        }):Play()
+        task.delay(0.15, function()
+            TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.7}):Play()
+            TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                BackgroundTransparency = 1,
+            }):Play()
+        end)
+        task.delay(0.35, function()
             MainFrame.Visible = false
             MainFrameScale.Scale = 1
+            MainFrame.BackgroundTransparency = 0
         end)
     end
 
+    -- Window open animation
+    local function animateOpen()
+        MainFrame.Visible = true
+        MainFrameScale.Scale = 0.7
+        MainFrame.BackgroundTransparency = 1
+        State.UIVisible = true
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            BackgroundTransparency = 0,
+        }):Play()
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1.03}):Play()
+        task.delay(0.4, function()
+            TweenService:Create(MainFrameScale, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        end)
+    end
+    State.animateOpen = animateOpen
+
     winCtrlClose.MouseButton1Click:Connect(function()
+        addRippleClick(winCtrlClose, Colors.Red)
         animateClose()
         notify("DAYI HUB", "UI hidden. Press RightShift to toggle.", 3)
     end)
-    winCtrlMin.MouseButton1Click:Connect(animateClose)
+    winCtrlMin.MouseButton1Click:Connect(function()
+        addRippleClick(winCtrlMin, Colors.PurpleBright)
+        animateClose()
+    end)
 
-    -- Window control hover effects
+    -- Window control hover effects with spring
     winCtrlMin.MouseEnter:Connect(function()
-        TweenService:Create(winCtrlMin, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(40, 38, 52)}):Play()
+        playSpringTween(winCtrlMin, {BackgroundColor3 = Color3.fromRGB(40, 38, 52)}, "elastic", 0.2)
     end)
     winCtrlMin.MouseLeave:Connect(function()
-        TweenService:Create(winCtrlMin, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 22, 34)}):Play()
+        playSpringTween(winCtrlMin, {BackgroundColor3 = Color3.fromRGB(22, 22, 34)}, "elastic", 0.2)
     end)
     winCtrlClose.MouseEnter:Connect(function()
-        TweenService:Create(winCtrlClose, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 20, 20)}):Play()
+        playSpringTween(winCtrlClose, {BackgroundColor3 = Color3.fromRGB(80, 20, 20)}, "elastic", 0.2)
     end)
     winCtrlClose.MouseLeave:Connect(function()
-        TweenService:Create(winCtrlClose, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 22, 34)}):Play()
+        playSpringTween(winCtrlClose, {BackgroundColor3 = Color3.fromRGB(22, 22, 34)}, "elastic", 0.2)
     end)
 
     --==== DRAGGING ====
@@ -1588,11 +1843,20 @@ local function buildGUI()
         btn.MouseButton1Click:Connect(function()
             if locked then
                 notify("Premium Required", "Upgrade to Premium to access this tab.", 3)
+                -- Shake animation for locked tabs
+                local origX = btn.Position.X.Offset
+                TweenService:Create(btn, TweenInfo.new(0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {Position = UDim2.new(0, origX + 4, 0, 0)}):Play()
+                task.delay(0.05, function()
+                    TweenService:Create(btn, TweenInfo.new(0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {Position = UDim2.new(0, origX - 4, 0, 0)}):Play()
+                end)
+                task.delay(0.1, function()
+                    TweenService:Create(btn, TweenInfo.new(0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {Position = UDim2.new(0, origX, 0, 0)}):Play()
+                end)
                 return
             end
             if activeTab == td.name then return end
             local oldTab = activeTab
-            -- Deselect old
+            -- Deselect old with fade
             for name, widgets in pairs(SidebarButtons) do
                 widgets.btn.BackgroundColor3 = Colors.Sidebar
                 widgets.accent.Visible = false
@@ -1602,41 +1866,69 @@ local function buildGUI()
                 local oldGrad = widgets.btn:FindFirstChild("UIGradient")
                 if oldGrad then oldGrad:Destroy() end
             end
-            -- Select new
+            -- Select new with bounce
             activeTab = td.name
             btn.BackgroundColor3 = Colors.ActiveTab
             makeUIGradient(btn, Color3.fromRGB(30, 14, 56), Color3.fromRGB(18, 8, 34), 90)
             accentIndicator.Visible = true
+            -- Accent indicator slide-in animation
+            accentIndicator.Size = UDim2.new(0, 0, 1, -16)
+            playSpringTween(accentIndicator, {Size = UDim2.new(0, 3, 1, -16)}, "elastic", 0.4)
             iconLabel.TextColor3 = Colors.PurpleBright
             nameLabel.TextColor3 = Colors.Text
+            -- Icon bounce
+            local iconOrigSize = iconLabel.TextSize
+            iconLabel.TextSize = iconOrigSize + 6
+            playSpringTween(iconLabel, {TextSize = iconOrigSize}, "bounce", 0.4)
+            -- Ripple
+            addRippleClick(btn, Colors.PurpleBright)
 
-            -- Page transition animation: hide old, slide new in
+            -- Page transition: crossfade + slide + stagger
             local oldPage = PageFrames[oldTab]
             local newPage = PageFrames[td.name]
             if oldPage then
-                oldPage.Visible = false
+                -- Fade out old page
+                TweenService:Create(oldPage, TweenInfo.new(0.12, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                    Position = UDim2.new(0, -20, 0, 0),
+                    BackgroundTransparency = 1,
+                }):Play()
+                task.delay(0.12, function()
+                    oldPage.Visible = false
+                    oldPage.Position = UDim2.new(0, 0, 0, 0)
+                    oldPage.BackgroundTransparency = 0
+                end)
             end
             if newPage then
                 newPage.Visible = true
-                newPage.Position = UDim2.new(0, 16, 0, 0)
-                TweenService:Create(newPage, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                newPage.Position = UDim2.new(0, 30, 0, 0)
+                newPage.BackgroundTransparency = 0.3
+                -- Slide in with spring
+                TweenService:Create(newPage, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
                     Position = UDim2.new(0, 0, 0, 0),
+                    BackgroundTransparency = 0,
                 }):Play()
+                -- Stagger children after page appears
+                task.delay(0.1, function()
+                    local scroll = newPage:FindFirstChildOfClass("ScrollingFrame")
+                    if scroll then
+                        staggerChildren(scroll, 0.03)
+                    end
+                end)
             end
         end)
 
-        -- Sidebar hover effects
+        -- Sidebar hover effects with spring + icon scale
         if not locked then
             btn.MouseEnter:Connect(function()
                 if activeTab ~= td.name then
-                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(14, 12, 22)}):Play()
-                    TweenService:Create(iconLabel, TweenInfo.new(0.15), {TextColor3 = Colors.PurpleBright}):Play()
+                    playSpringTween(btn, {BackgroundColor3 = Color3.fromRGB(14, 12, 22)}, "soft", 0.2)
+                    playSpringTween(iconLabel, {TextColor3 = Colors.PurpleBright, TextSize = 19}, "elastic", 0.2)
                 end
             end)
             btn.MouseLeave:Connect(function()
                 if activeTab ~= td.name then
-                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Colors.Sidebar}):Play()
-                    TweenService:Create(iconLabel, TweenInfo.new(0.15), {TextColor3 = Colors.TextDim}):Play()
+                    playSpringTween(btn, {BackgroundColor3 = Colors.Sidebar}, "soft", 0.2)
+                    playSpringTween(iconLabel, {TextColor3 = Colors.TextDim, TextSize = 17}, "elastic", 0.2)
                 end
             end)
         end
@@ -1687,6 +1979,8 @@ local function buildGUI()
     premCard.Position = UDim2.new(0, 14, 0, 14)
     -- Glow orb
     local premGlow = makeGlow(premCard, Colors.Purple, UDim2.new(0, 80, 0, 80), UDim2.new(1, -50, 0, -20), 0.92)
+    addGlowPulse(premGlow, 0.9, 0.06, 1.5)
+    addFloatAnim(premCard, 2, 1, 0)
 
     makeTextLabel(premCard, {
         Size = UDim2.new(1, -20, 0, 16),
@@ -1910,7 +2204,21 @@ local function buildGUI()
             makeUIStroke(qaBtn, Colors.Purple, 1, 0.8)
         end
 
-        qaBtn.MouseButton1Click:Connect(qa.action)
+        qaBtn.MouseButton1Click:Connect(function()
+            playRipple(qaBtn, math.random(0, qaBtn.AbsoluteSize.X), math.random(0, qaBtn.AbsoluteSize.Y), qa.filled and Colors.White or Colors.PurpleBright)
+            playSpringTween(qaBtn, {Size = UDim2.new(1, -16, 0, 26)}, "snappy", 0.08)
+            task.delay(0.08, function()
+                playSpringTween(qaBtn, {Size = UDim2.new(1, -20, 0, 28)}, "elastic", 0.3)
+            end)
+            qa.action()
+        end)
+        -- Hover effect
+        qaBtn.MouseEnter:Connect(function()
+            playSpringTween(qaBtn, {BackgroundColor3 = qa.filled and Colors.PurpleBtnHov or Color3.fromRGB(28, 26, 42)}, "soft", 0.2)
+        end)
+        qaBtn.MouseLeave:Connect(function()
+            playSpringTween(qaBtn, {BackgroundColor3 = qa.filled and Colors.PurpleBtn or Color3.fromRGB(22, 22, 34)}, "soft", 0.2)
+        end)
     end
 
     --==== STATUS BAR ====
@@ -2216,6 +2524,7 @@ local function buildPremiumPage()
     makeUIStroke(banner, Colors.PurpleBright, 1.5, 0.2)
     -- Banner glow orb
     local bannerGlow = makeGlow(banner, Colors.Purple, UDim2.new(0, 100, 0, 100), UDim2.new(1, -60, 0, -30), 0.9)
+    addGlowPulse(bannerGlow, 0.88, 0.05, 1.2)
 
     local bannerIcon = makeFrame(banner, {
         Size = UDim2.new(0, 56, 0, 56),
@@ -2741,6 +3050,7 @@ local function buildCreditsPage()
     makeUIGradient(banner, Color3.fromRGB(50, 18, 100), Color3.fromRGB(25, 10, 50), 135)
     makeUIStroke(banner, Colors.PurpleBright, 1.5, 0.2)
     local bannerGlow = makeGlow(banner, Colors.Purple, UDim2.new(0, 80, 0, 80), UDim2.new(1, -50, 0, -20), 0.92)
+    addGlowPulse(bannerGlow, 0.88, 0.05, 1.2)
     makeTextLabel(banner, {
         Size = UDim2.new(0, 40, 1, 0),
         Position = UDim2.new(0, 14, 0, 0),
@@ -3857,15 +4167,27 @@ local function setupUIToggle()
             State.UIVisible = not State.UIVisible
             if MainFrame and MainFrameScale then
                 if State.UIVisible then
-                    MainFrameScale.Scale = 0.85
+                    MainFrameScale.Scale = 0.7
                     MainFrame.Visible = true
-                    TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+                    MainFrame.BackgroundTransparency = 0.5
+                    -- Multi-stage spring open
+                    TweenService:Create(MainFrameScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1.04}):Play()
+                    TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                    task.delay(0.4, function()
+                        TweenService:Create(MainFrameScale, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+                    end)
                 else
-                    local tween = TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85})
-                    tween:Play()
-                    task.delay(0.2, function()
+                    -- Multi-stage close
+                    TweenService:Create(MainFrameScale, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = 0.92}):Play()
+                    TweenService:Create(MainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {BackgroundTransparency = 0.5}):Play()
+                    task.delay(0.15, function()
+                        TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.7}):Play()
+                        TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+                    end)
+                    task.delay(0.35, function()
                         MainFrame.Visible = false
                         MainFrameScale.Scale = 1
+                        MainFrame.BackgroundTransparency = 0
                     end)
                 end
             end
