@@ -1699,8 +1699,12 @@ local function buildVisualPage()
     createToggleRow(scroll, "💀", "Skeleton ESP", Colors.Pink, false, function(on)
         DayiHub.SetToggle("SkeletonESP", on)
     end)
-    createLockedRow(scroll, "🟦", "Box ESP")
-    createLockedRow(scroll, "📛", "Name ESP")
+    createToggleRow(scroll, "🟦", "Box ESP", Colors.Cyan, false, function(on)
+        DayiHub.SetToggle("BoxESP", on)
+    end)
+    createToggleRow(scroll, "📛", "Name ESP", Colors.Purple, false, function(on)
+        DayiHub.SetToggle("NameESP", on)
+    end)
     createDropdownRow(scroll, "🎯", "Aimbot", {"ON", "OFF"}, "OFF", Colors.Cyan, function(val)
         DayiHub.SetToggle("Aimbot", val == "ON")
     end)
@@ -2500,6 +2504,21 @@ end
 --==========================================================================
 -- ESP SYSTEM
 --==========================================================================
+local ESPGui = nil
+local function getESPGui()
+    if ESPGui and ESPGui.Parent then return ESPGui end
+    ESPGui = Instance.new("ScreenGui")
+    ESPGui.Name = "DAYI_ESP_DRAW"
+    ESPGui.ResetOnSpawn = false
+    ESPGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ESPGui.IgnoreGuiInset = true
+    pcall(function() ESPGui.Parent = CoreGui end)
+    if ESPGui.Parent == nil then
+        ESPGui.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    end
+    return ESPGui
+end
+
 local function createHighlight(player)
     local hl = Instance.new("Highlight")
     hl.Name = "DAYI_ESP_HL_" .. player.Name
@@ -2510,17 +2529,171 @@ local function createHighlight(player)
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Adornee = player.Character
     hl.Enabled = Config.WallhackESP
-    hl.Parent = CoreGui
+    pcall(function() hl.Parent = CoreGui end)
     return hl
+end
+
+-- Box ESP: draws a 2D box around the player's character on screen
+local function createBoxESP(player)
+    local gui = getESPGui()
+    local box = Instance.new("Frame")
+    box.Name = "DAYI_ESP_Box_" .. player.Name
+    box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    box.BackgroundTransparency = 1
+    box.Visible = false
+    box.ZIndex = 50
+    box.Parent = gui
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+    stroke.Thickness = 2
+    stroke.Transparency = 0
+    stroke.Parent = box
+
+    -- Corner pieces for a premium look (4 L-shaped corners)
+    local corners = {}
+    local cornerLen = 12
+    for i = 1, 4 do
+        local vert = Instance.new("Frame")
+        vert.BorderSizePixel = 0
+        vert.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+        vert.Parent = box
+        local horiz = Instance.new("Frame")
+        horiz.BorderSizePixel = 0
+        horiz.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+        horiz.Parent = box
+        corners[i] = { vert = vert, horiz = horiz }
+    end
+
+    -- Health bar (left side)
+    local healthBarBg = Instance.new("Frame")
+    healthBarBg.Name = "HealthBarBg"
+    healthBarBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    healthBarBg.BackgroundTransparency = 0.5
+    healthBarBg.BorderSizePixel = 0
+    healthBarBg.Visible = false
+    healthBarBg.ZIndex = 49
+    healthBarBg.Parent = gui
+
+    local healthBarFill = Instance.new("Frame")
+    healthBarFill.Name = "HealthBarFill"
+    healthBarFill.BorderSizePixel = 0
+    healthBarFill.Visible = false
+    healthBarFill.ZIndex = 50
+    healthBarFill.Parent = gui
+
+    return { box = box, stroke = stroke, corners = corners, healthBarBg = healthBarBg, healthBarFill = healthBarFill }
+end
+
+local function updateBoxESP(boxData, player)
+    if not boxData or not boxData.box or not boxData.box.Parent then return end
+    local char = player.Character
+    if not char or not isAlive(player) then
+        boxData.box.Visible = false
+        boxData.healthBarBg.Visible = false
+        boxData.healthBarFill.Visible = false
+        return
+    end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not head then
+        boxData.box.Visible = false
+        boxData.healthBarBg.Visible = false
+        boxData.healthBarFill.Visible = false
+        return
+    end
+
+    local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+    if not onScreen then
+        boxData.box.Visible = false
+        boxData.healthBarBg.Visible = false
+        boxData.healthBarFill.Visible = false
+        return
+    end
+
+    local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
+    local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3.5, 0))
+
+    local height = math.abs(headPos.Y - legPos.Y)
+    local width = height * 0.55
+
+    local topLeftX = pos.X - width / 2
+    local topLeftY = headPos.Y
+
+    boxData.box.Size = UDim2.new(0, width, 0, height)
+    boxData.box.Position = UDim2.new(0, topLeftX, 0, topLeftY)
+    boxData.box.Visible = true
+
+    -- Update corner pieces
+    local cl = 10
+    local ct = 2
+    local corners = boxData.corners
+    -- Top-left
+    corners[1].vert.Size = UDim2.new(0, ct, 0, cl)
+    corners[1].vert.Position = UDim2.new(0, 0, 0, 0)
+    corners[1].horiz.Size = UDim2.new(0, cl, 0, ct)
+    corners[1].horiz.Position = UDim2.new(0, 0, 0, 0)
+    -- Top-right
+    corners[2].vert.Size = UDim2.new(0, ct, 0, cl)
+    corners[2].vert.Position = UDim2.new(1, -ct, 0, 0)
+    corners[2].horiz.Size = UDim2.new(0, cl, 0, ct)
+    corners[2].horiz.Position = UDim2.new(1, -cl, 0, 0)
+    -- Bottom-left
+    corners[3].vert.Size = UDim2.new(0, ct, 0, cl)
+    corners[3].vert.Position = UDim2.new(0, 0, 1, -cl)
+    corners[3].horiz.Size = UDim2.new(0, cl, 0, ct)
+    corners[3].horiz.Position = UDim2.new(0, 0, 1, -ct)
+    -- Bottom-right
+    corners[4].vert.Size = UDim2.new(0, ct, 0, cl)
+    corners[4].vert.Position = UDim2.new(1, -ct, 1, -cl)
+    corners[4].horiz.Size = UDim2.new(0, cl, 0, ct)
+    corners[4].horiz.Position = UDim2.new(1, -cl, 1, -ct)
+
+    -- Health bar
+    if hum then
+        local hp = hum.Health
+        local maxHp = hum.MaxHealth
+        local pct = math.clamp(hp / maxHp, 0, 1)
+        local barH = height
+        local fillH = barH * pct
+        local barX = topLeftX - 6
+        local barY = topLeftY
+
+        boxData.healthBarBg.Size = UDim2.new(0, 3, 0, barH)
+        boxData.healthBarBg.Position = UDim2.new(0, barX, 0, barY)
+        boxData.healthBarBg.Visible = true
+
+        boxData.healthBarFill.Size = UDim2.new(0, 3, 0, fillH)
+        boxData.healthBarFill.Position = UDim2.new(0, barX, 0, barY + (barH - fillH))
+        boxData.healthBarFill.Visible = true
+        -- Color: green -> yellow -> red based on health
+        if pct > 0.5 then
+            boxData.healthBarFill.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
+        elseif pct > 0.25 then
+            boxData.healthBarFill.BackgroundColor3 = Color3.fromRGB(251, 191, 36)
+        else
+            boxData.healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+        end
+    end
+end
+
+local function removeBoxESP(boxData)
+    if not boxData then return end
+    if boxData.box then boxData.box:Destroy() end
+    if boxData.healthBarBg then boxData.healthBarBg:Destroy() end
+    if boxData.healthBarFill then boxData.healthBarFill:Destroy() end
 end
 
 local function createSkeletonESP(player)
     local char = player.Character
     if not char then return nil, nil end
 
+    local gui = getESPGui()
     local folder = Instance.new("Folder")
     folder.Name = "DAYI_ESP_Skel_" .. player.Name
-    folder.Parent = CoreGui
+    folder.Parent = gui
 
     local bones = {
         {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
@@ -2544,6 +2717,8 @@ local function createSkeletonESP(player)
             line.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
             line.BorderSizePixel = 0
             line.Size = UDim2.new(0, 1, 0, 1)
+            line.Visible = false
+            line.ZIndex = 50
             line.Parent = folder
             table.insert(lines, { line = line, p1 = p1, p2 = p2 })
         end
@@ -2571,13 +2746,63 @@ local function updateSkeletonLines(lines)
     end
 end
 
+local function createNameESP(player)
+    local gui = getESPGui()
+    local label = Instance.new("TextLabel")
+    label.Name = "DAYI_ESP_Name_" .. player.Name
+    label.BackgroundTransparency = 1
+    label.Text = player.DisplayName
+    label.TextColor3 = Config.ESPColor or Color3.fromRGB(255, 255, 255)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamBold
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.Size = UDim2.new(0, 200, 0, 20)
+    label.Visible = false
+    label.ZIndex = 51
+    label.Parent = gui
+    return label
+end
+
+local function updateNameESP(label, player)
+    if not label or not label.Parent then return end
+    local char = player.Character
+    if not char or not isAlive(player) then
+        label.Visible = false
+        return
+    end
+    local head = char:FindFirstChild("Head")
+    if not head then
+        label.Visible = false
+        return
+    end
+    local pos, onScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 2.5, 0))
+    if not onScreen then
+        label.Visible = false
+        return
+    end
+    label.Position = UDim2.new(0, pos.X - 100, 0, pos.Y - 20)
+    label.Visible = true
+end
+
 local function createESPForPlayer(player)
     if player == LocalPlayer then return end
     if State.ESPObjects[player] then return end
     local espData = {}
 
-    if Config.WallhackESP then espData.highlight = createHighlight(player) end
-    if Config.SkeletonESP then espData.skeleton, espData.skeletonLines = createSkeletonESP(player) end
+    if Config.WallhackESP then
+        espData.highlight = createHighlight(player)
+        espData.box = createBoxESP(player)
+    end
+    if Config.SkeletonESP then
+        espData.skeleton, espData.skeletonLines = createSkeletonESP(player)
+    end
+    if Config.BoxESP and not espData.box then
+        espData.box = createBoxESP(player)
+    end
+    if Config.NameESP then
+        espData.nameLabel = createNameESP(player)
+    end
 
     State.ESPObjects[player] = espData
 end
@@ -2586,7 +2811,9 @@ local function removeESPForPlayer(player)
     local espData = State.ESPObjects[player]
     if not espData then return end
     if espData.highlight then espData.highlight:Destroy() end
+    if espData.box then removeBoxESP(espData.box) end
     if espData.skeleton then espData.skeleton:Destroy() end
+    if espData.nameLabel then espData.nameLabel:Destroy() end
     State.ESPObjects[player] = nil
 end
 
@@ -2606,13 +2833,34 @@ local function updateESP()
         local char = player.Character
         if not char or not isAlive(player) then
             if espData.highlight then espData.highlight.Adornee = nil end
+            if espData.box then
+                espData.box.box.Visible = false
+                espData.box.healthBarBg.Visible = false
+                espData.box.healthBarFill.Visible = false
+            end
         else
             if espData.highlight then
                 espData.highlight.Adornee = char
                 espData.highlight.Enabled = Config.WallhackESP
             end
-            if espData.skeletonLines then
+            if espData.box and (Config.WallhackESP or Config.BoxESP) then
+                updateBoxESP(espData.box, player)
+            elseif espData.box then
+                espData.box.box.Visible = false
+                espData.box.healthBarBg.Visible = false
+                espData.box.healthBarFill.Visible = false
+            end
+            if espData.skeletonLines and Config.SkeletonESP then
                 updateSkeletonLines(espData.skeletonLines)
+            elseif espData.skeletonLines then
+                for _, bone in ipairs(espData.skeletonLines) do
+                    bone.line.Visible = false
+                end
+            end
+            if espData.nameLabel and Config.NameESP then
+                updateNameESP(espData.nameLabel, player)
+            elseif espData.nameLabel then
+                espData.nameLabel.Visible = false
             end
         end
     end
@@ -2928,7 +3176,7 @@ local function setupPlayerEvents()
     Players.PlayerAdded:Connect(function(player)
         player.CharacterAdded:Connect(function()
             task.wait(0.5)
-            if Config.WallhackESP or Config.SkeletonESP then
+            if Config.WallhackESP or Config.SkeletonESP or Config.BoxESP or Config.NameESP then
                 createESPForPlayer(player)
             end
         end)
@@ -2955,6 +3203,8 @@ function DayiHub.SetToggle(name, value)
     elseif name == "GrassOptimizer" then applyGrassOptimizer()
     elseif name == "WallhackESP" then refreshAllESP()
     elseif name == "SkeletonESP" then refreshAllESP()
+    elseif name == "BoxESP" then refreshAllESP()
+    elseif name == "NameESP" then refreshAllESP()
     elseif name == "Aimbot" then toggleAimbot()
     elseif name == "MobileAimbot" then toggleMobileAimbot()
     elseif name == "ShowCircle" then updateCircle()
