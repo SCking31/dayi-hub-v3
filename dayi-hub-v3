@@ -1127,10 +1127,57 @@ local function buildGUI()
         Font = Enum.Font.SourceSans,
     })
 
+    -- Player badge
+    local playerName = LocalPlayer.Name
+    local playerBadge = makeFrame(titleBar, {
+        Size = UDim2.new(0, 150, 0, 40),
+        Position = UDim2.new(1, -468, 0.5, -20),
+        BackgroundColor3 = Colors.BadgeBg,
+    })
+    makeUICorner(playerBadge, 8)
+    makeUIStroke(playerBadge, Colors.Border, 1, 0.82)
+
+    local avatarImage = Instance.new("ImageLabel")
+    avatarImage.Size = UDim2.new(0, 28, 0, 28)
+    avatarImage.Position = UDim2.new(0, 6, 0.5, -14)
+    avatarImage.BackgroundColor3 = Color3.fromRGB(60, 40, 100)
+    avatarImage.BackgroundTransparency = 0
+    avatarImage.BorderSizePixel = 0
+    avatarImage.ZIndex = 3
+    avatarImage.Parent = playerBadge
+    makeUICorner(avatarImage, 14)
+
+    pcall(function()
+        local userId = LocalPlayer.UserId
+        local thumb = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+        avatarImage.Image = thumb
+    end)
+
+    makeTextLabel(playerBadge, {
+        Size = UDim2.new(1, -42, 0, 16),
+        Position = UDim2.new(0, 40, 0, 5),
+        BackgroundTransparency = 1,
+        Text = playerName,
+        TextColor3 = Colors.Text,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(playerBadge, {
+        Size = UDim2.new(1, -42, 0, 14),
+        Position = UDim2.new(0, 40, 0, 22),
+        BackgroundTransparency = 1,
+        Text = "@" .. playerName,
+        TextColor3 = Colors.Pink,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
     -- Version badge
     local versionBadge = makeFrame(titleBar, {
         Size = UDim2.new(0, 110, 0, 40),
-        Position = UDim2.new(1, -300, 0.5, -20),
+        Position = UDim2.new(1, -308, 0.5, -20),
         BackgroundColor3 = Colors.BadgeBg,
     })
     makeUICorner(versionBadge, 8)
@@ -1156,8 +1203,8 @@ local function buildGUI()
 
     -- Connection badge
     local connBadge = makeFrame(titleBar, {
-        Size = UDim2.new(0, 128, 0, 40),
-        Position = UDim2.new(1, -180, 0.5, -20),
+        Size = UDim2.new(0, 140, 0, 40),
+        Position = UDim2.new(1, -188, 0.5, -20),
         BackgroundColor3 = Colors.BadgeBg,
     })
     makeUICorner(connBadge, 8)
