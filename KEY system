@@ -1,0 +1,318 @@
+--==========================================================================
+--  DAYI HUB — KEY SYSTEM
+--  Validate key, then load main script
+--==========================================================================
+
+local Players          = game:GetService("Players")
+local TweenService     = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui          = game:GetService("CoreGui")
+local LocalPlayer      = Players.LocalPlayer
+
+--==== VALID KEYS ====--
+local VALID_KEYS = {
+    ["DAYI-3OMPKJK48UX"]      = true,
+    ["DAYI-PREMIUM-2FDSEREUWQ"] = true,
+    ["Q"]                    = true,
+}
+
+--==== MAIN SCRIPT LOADER ====--
+local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/SCking31/dayi-hub-v3/refs/heads/main/dayi-hub-v3"
+
+local function loadMainScript()
+    local ok, result = pcall(function()
+        return loadstring(game:HttpGet(MAIN_SCRIPT_URL))()
+    end)
+    if not ok then
+        warn("[DAYI HUB] Failed to load main script: " .. tostring(result))
+    end
+end
+
+--==== COLORS ====--
+local Colors = {
+    Bg       = Color3.fromRGB(18, 18, 26),
+    Card     = Color3.fromRGB(24, 24, 36),
+    Panel    = Color3.fromRGB(30, 30, 44),
+    Border   = Color3.fromRGB(50, 50, 70),
+    Purple   = Color3.fromRGB(138, 99, 255),
+    PurpleDk = Color3.fromRGB(88, 60, 180),
+    PurpleBg = Color3.fromRGB(40, 30, 70),
+    Text     = Color3.fromRGB(240, 240, 250),
+    TextDim  = Color3.fromRGB(150, 150, 170),
+    Green    = Color3.fromRGB(80, 220, 120),
+    Red      = Color3.fromRGB(240, 80, 100),
+    Amber    = Color3.fromRGB(255, 180, 60),
+}
+
+--==== HELPERS ====--
+local function makeFrame(parent, props)
+    local f = Instance.new("Frame")
+    f.BackgroundColor3 = props.BackgroundColor3 or Color3.fromRGB(255, 255, 255)
+    f.BackgroundTransparency = props.BackgroundTransparency or 0
+    f.BorderSizePixel = props.BorderSizePixel or 0
+    f.Size = props.Size or UDim2.new(1, 0, 1, 0)
+    f.Position = props.Position or UDim2.new(0, 0, 0, 0)
+    f.Parent = parent
+    return f
+end
+
+local function makeTextLabel(parent, props)
+    local t = Instance.new("TextLabel")
+    t.BackgroundTransparency = props.BackgroundTransparency or 1
+    t.Size = props.Size or UDim2.new(1, 0, 1, 0)
+    t.Position = props.Position or UDim2.new(0, 0, 0, 0)
+    t.Text = props.Text or ""
+    t.TextColor3 = props.TextColor3 or Color3.fromRGB(255, 255, 255)
+    t.TextSize = props.TextSize or 14
+    t.TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Center
+    t.TextYAlignment = props.TextYAlignment or Enum.TextYAlignment.Center
+    t.Font = props.Font or Enum.Font.SourceSans
+    t.Parent = parent
+    return t
+end
+
+local function makeTextBox(parent, props)
+    local tb = Instance.new("TextBox")
+    tb.BackgroundTransparency = props.BackgroundTransparency or 1
+    tb.Size = props.Size or UDim2.new(1, 0, 1, 0)
+    tb.Position = props.Position or UDim2.new(0, 0, 0, 0)
+    tb.Text = props.Text or ""
+    tb.PlaceholderText = props.PlaceholderText or ""
+    tb.TextColor3 = props.TextColor3 or Color3.fromRGB(255, 255, 255)
+    tb.PlaceholderColor3 = props.PlaceholderColor3 or Color3.fromRGB(120, 120, 140)
+    tb.TextSize = props.TextSize or 14
+    tb.Font = props.Font or Enum.Font.SourceSans
+    tb.ClearTextOnFocus = false
+    tb.TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Center
+    tb.Parent = parent
+    return tb
+end
+
+local function makeButton(parent, props)
+    local b = Instance.new("TextButton")
+    b.BackgroundTransparency = props.BackgroundTransparency or 0
+    b.Size = props.Size or UDim2.new(1, 0, 0, 40)
+    b.Position = props.Position or UDim2.new(0, 0, 0, 0)
+    b.Text = props.Text or ""
+    b.TextColor3 = props.TextColor3 or Color3.fromRGB(255, 255, 255)
+    b.TextSize = props.TextSize or 14
+    b.Font = props.Font or Enum.Font.SourceSansBold
+    b.AutoButtonColor = true
+    b.Parent = parent
+    return b
+end
+
+local function makeUICorner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 8)
+    c.Parent = parent
+end
+
+local function makeUIStroke(parent, color, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Color = color or Color3.fromRGB(255, 255, 255)
+    s.Thickness = thickness or 1
+    s.Transparency = transparency or 0
+    s.Parent = parent
+end
+
+--==== KEY UI ====--
+local function showKeyUI()
+    -- Remove old instances
+    for _, gui in ipairs(CoreGui:GetChildren()) do
+        if gui.Name == "DAYI_KEY_HUB" then gui:Destroy() end
+    end
+    for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
+        if gui.Name == "DAYI_KEY_HUB" then gui:Destroy() end
+    end
+
+    local keyGui = Instance.new("ScreenGui")
+    keyGui.Name = "DAYI_KEY_HUB"
+    keyGui.ResetOnSpawn = false
+    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    keyGui.IgnoreGuiInset = true
+    pcall(function() keyGui.Parent = CoreGui end)
+    if keyGui.Parent == nil then
+        keyGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    -- Dim background
+    local dim = makeFrame(keyGui, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.5,
+    })
+
+    -- Card
+    local card = makeFrame(dim, {
+        Size = UDim2.new(0, 400, 0, 320),
+        Position = UDim2.new(0.5, -200, 0.5, -160),
+        BackgroundColor3 = Colors.Bg,
+    })
+    makeUICorner(card, 14)
+    makeUIStroke(card, Colors.Purple, 1.5, 0)
+
+    local cardScale = Instance.new("UIScale")
+    cardScale.Scale = 0.85
+    cardScale.Parent = card
+    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+    -- Icon circle
+    local iconCircle = makeFrame(card, {
+        Size = UDim2.new(0, 56, 0, 56),
+        Position = UDim2.new(0.5, -28, 0, 24),
+        BackgroundColor3 = Colors.PurpleBg,
+    })
+    makeUICorner(iconCircle, 28)
+    makeUIStroke(iconCircle, Colors.Purple, 1.5, 0)
+    makeTextLabel(iconCircle, {
+        Text = "🔑",
+        TextColor3 = Colors.Text,
+        TextSize = 26,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Title
+    makeTextLabel(card, {
+        Size = UDim2.new(1, 0, 0, 24),
+        Position = UDim2.new(0, 0, 0, 90),
+        Text = "DAYI HUB",
+        TextColor3 = Colors.Text,
+        TextSize = 22,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Subtitle
+    makeTextLabel(card, {
+        Size = UDim2.new(1, 0, 0, 16),
+        Position = UDim2.new(0, 0, 0, 116),
+        Text = "Enter your key to continue",
+        TextColor3 = Colors.TextDim,
+        TextSize = 13,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Input box background
+    local inputBg = makeFrame(card, {
+        Size = UDim2.new(1, -40, 0, 42),
+        Position = UDim2.new(0, 20, 0, 144),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(inputBg, 8)
+    makeUIStroke(inputBg, Colors.Border, 1, 0.5)
+
+    local keyInput = makeTextBox(inputBg, {
+        Size = UDim2.new(1, -20, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        PlaceholderText = "DAYI-XXXX-XXXX",
+        TextColor3 = Colors.Text,
+        TextSize = 15,
+        Font = Enum.Font.SourceSans,
+        TextXAlignment = Enum.TextXAlignment.Center,
+    })
+
+    -- Status label
+    local statusLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 16),
+        Position = UDim2.new(0, 20, 0, 192),
+        Text = "",
+        TextColor3 = Colors.TextDim,
+        TextSize = 12,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Submit button
+    local submitBtn = makeButton(card, {
+        Size = UDim2.new(1, -40, 0, 40),
+        Position = UDim2.new(0, 20, 0, 216),
+        BackgroundColor3 = Colors.Purple,
+        Text = "Continue",
+        TextColor3 = Colors.Text,
+        TextSize = 15,
+    })
+    makeUICorner(submitBtn, 8)
+
+    -- Get key link
+    local getKeyBtn = makeButton(card, {
+        Size = UDim2.new(1, -40, 0, 28),
+        Position = UDim2.new(0, 20, 0, 268),
+        BackgroundTransparency = 1,
+        Text = "Get Key",
+        TextColor3 = Colors.Purple,
+        TextSize = 12,
+    })
+
+    --==== LOGIC ====--
+    local submitted = false
+
+    local function validateKey(key)
+        if key and VALID_KEYS[key:upper()] then
+            return true
+        end
+        return false
+    end
+
+    local function handleSubmit()
+        if submitted then return end
+        local key = keyInput.Text
+        if key == nil or key == "" then
+            statusLabel.Text = "Please enter a key."
+            statusLabel.TextColor3 = Colors.Amber
+            return
+        end
+
+        submitted = true
+        statusLabel.Text = "Checking key..."
+        statusLabel.TextColor3 = Colors.TextDim
+
+        task.delay(0.6, function()
+            if validateKey(key) then
+                statusLabel.Text = "Key accepted! Loading..."
+                statusLabel.TextColor3 = Colors.Green
+
+                -- Success animation
+                TweenService:Create(submitBtn, TweenInfo.new(0.2), {BackgroundColor3 = Colors.Green}):Play()
+
+                task.delay(0.8, function()
+                    -- Fade out card
+                    TweenService:Create(cardScale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+                    TweenService:Create(dim, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+                    task.wait(0.3)
+                    keyGui:Destroy()
+                    -- Load main script
+                    loadMainScript()
+                end)
+            else
+                statusLabel.Text = "Invalid key. Try again."
+                statusLabel.TextColor3 = Colors.Red
+                -- Shake animation
+                local origPos = card.Position
+                for i = 1, 3 do
+                    TweenService:Create(card, TweenInfo.new(0.05), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + 8, origPos.Y.Scale, origPos.Y.Offset)}):Play()
+                    task.wait(0.05)
+                    TweenService:Create(card, TweenInfo.new(0.05), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset - 8, origPos.Y.Scale, origPos.Y.Offset)}):Play()
+                    task.wait(0.05)
+                end
+                TweenService:Create(card, TweenInfo.new(0.05), {Position = origPos}):Play()
+                submitted = false
+            end
+        end)
+    end
+
+    submitBtn.MouseButton1Click:Connect(handleSubmit)
+    keyInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed then handleSubmit() end
+    end)
+
+    getKeyBtn.MouseButton1Click:Connect(function()
+        statusLabel.Text = "Check Discord for keys: discord.gg/QFwWBWM2j"
+        statusLabel.TextColor3 = Colors.Purple
+    end)
+
+    -- Auto-focus input
+    task.wait(0.4)
+    keyInput:CaptureFocus()
+end
+
+--==== START ====--
+showKeyUI()
