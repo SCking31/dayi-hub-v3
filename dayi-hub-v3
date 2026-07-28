@@ -1794,7 +1794,7 @@ local function createScrollContent(page, topOffset)
         Position = UDim2.new(0, 0, 0, topOffset),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
-        ScrollBarThickness = 3,
+        ScrollBarThickness = 6,
     })
     local padding = Instance.new("UIPadding")
     padding.PaddingLeft = UDim.new(0, 10)
@@ -2182,16 +2182,16 @@ local function buildSettingsPage()
         DayiHub.SetUIToggleKey(key)
     end, Config.UIToggleKey)
 
+    createToggleRow(scroll, "🔮", "Background Particles", Colors.Pink, Config.BackgroundParticles, function(on)
+        DayiHub.SetToggle("BackgroundParticles", on)
+    end)
+
     createSliderRow(scroll, "📐", "UI Scale", 80, 120, 100, Colors.Purple, function(val)
         DayiHub.SetSlider("UIScale", val)
     end)
 
     createSliderRow(scroll, "📷", "Camera FOV", 1, 120, 70, Colors.Cyan, function(val)
         DayiHub.SetSlider("CameraFOV", val)
-    end)
-
-    createToggleRow(scroll, "🔮", "Background Particles", Colors.Pink, Config.BackgroundParticles, function(on)
-        DayiHub.SetToggle("BackgroundParticles", on)
     end)
 end
 
