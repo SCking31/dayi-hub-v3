@@ -4162,57 +4162,108 @@ local function showLoadingScreen(onComplete)
         loadGui.Parent = LocalPlayer.PlayerGui
     end
 
-    -- Full-screen backdrop with subtle dark gradient feel
+    -- Full-screen backdrop
     local dim = makeFrame(loadGui, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = Color3.fromRGB(4, 4, 10),
-        BackgroundTransparency = 0.15,
+        BackgroundTransparency = 0.1,
         BorderSizePixel = 0,
     })
 
-    -- Ambient glow behind card (large blurred circle)
-    local glow = makeFrame(dim, {
-        Size = UDim2.new(0, 600, 0, 600),
-        Position = UDim2.new(0.5, -300, 0.5, -300),
+    -- Animated gradient backdrop overlay
+    local gradOverlay = makeFrame(dim, {
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = Colors.PurpleDk,
-        BackgroundTransparency = 0.55,
+        BackgroundTransparency = 0.85,
         BorderSizePixel = 0,
         ZIndex = 1,
     })
-    makeUICorner(glow, 300)
-    local glowScale = Instance.new("UIScale")
-    glowScale.Scale = 0.6
-    glowScale.Parent = glow
-    TweenService:Create(glowScale, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1}):Play()
-    TweenService:Create(glow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.7}):Play()
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 10, 90)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 5, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 15, 110)),
+    })
+    grad.Rotation = 0
+    grad.Parent = gradOverlay
+    task.spawn(function()
+        while gradOverlay.Parent do
+            TweenService:Create(grad, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Rotation = 360}):Play()
+            task.wait(3)
+        end
+    end)
 
-    -- Floating particles for ambiance
+    -- Ambient glow orbs behind card
+    local glow1 = makeFrame(dim, {
+        Size = UDim2.new(0, 500, 0, 500),
+        Position = UDim2.new(0.5, -250, 0.5, -250),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.88,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+    })
+    makeUICorner(glow1, 250)
+    local glow1Scale = Instance.new("UIScale")
+    glow1Scale.Scale = 0.7
+    glow1Scale.Parent = glow1
+    TweenService:Create(glow1Scale, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.1}):Play()
+    TweenService:Create(glow1, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.92}):Play()
+
+    local glow2 = makeFrame(dim, {
+        Size = UDim2.new(0, 350, 0, 350),
+        Position = UDim2.new(0.5, -175, 0.5, -175),
+        BackgroundColor3 = Colors.Pink,
+        BackgroundTransparency = 0.9,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+    })
+    makeUICorner(glow2, 175)
+    local glow2Scale = Instance.new("UIScale")
+    glow2Scale.Scale = 1
+    glow2Scale.Parent = glow2
+    task.spawn(function()
+        while glow2.Parent do
+            TweenService:Create(glow2Scale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.15}):Play()
+            task.wait(1.5)
+            TweenService:Create(glow2Scale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 0.9}):Play()
+            task.wait(1.5)
+        end
+    end)
+
+    -- Floating particles
     local particleFolder = makeFrame(dim, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        ZIndex = 2,
+        ZIndex = 3,
         ClipsDescendants = false,
     })
     local ambientParticles = {}
-    for i = 1, 12 do
-        local pColor = ({ Colors.Purple, Colors.Pink, Colors.Cyan })[(i % 3) + 1]
-        local pSize = math.random(2, 5)
+    local particleColors = { Colors.Purple, Colors.Pink, Colors.Cyan, Colors.PurpleBtn }
+    for i = 1, 24 do
+        local pColor = particleColors[(i % #particleColors) + 1]
+        local pSize = math.random(2, 6)
         local pf = makeFrame(particleFolder, {
             Size = UDim2.new(0, pSize, 0, pSize),
             Position = UDim2.new(math.random(), 0, math.random(), 0),
             BackgroundColor3 = pColor,
-            BackgroundTransparency = 0.5 + math.random() * 0.3,
+            BackgroundTransparency = 0.4 + math.random() * 0.4,
             BorderSizePixel = 0,
-            ZIndex = 3,
+            ZIndex = 4,
         })
         makeUICorner(pf, math.floor(pSize / 2))
+        local pStroke = Instance.new("UIStroke")
+        pStroke.Color = pColor
+        pStroke.Thickness = 1
+        pStroke.Transparency = 0.5
+        pStroke.Parent = pf
         ambientParticles[#ambientParticles + 1] = {
             frame = pf,
             x = pf.Position.X.Scale,
             y = pf.Position.Y.Scale,
-            speed = 0.0008 + math.random() * 0.0016,
-            drift = (math.random() - 0.5) * 0.0006,
+            speed = 0.0006 + math.random() * 0.0018,
+            drift = (math.random() - 0.5) * 0.0008,
             phase = math.random() * math.pi * 2,
+            baseTrans = pf.BackgroundTransparency,
         }
     end
     local particleConn
@@ -4226,103 +4277,211 @@ local function showLoadingScreen(onComplete)
                 info.x = math.random()
             end
             info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+            local pulse = 0.7 + math.sin(info.phase * 2) * 0.3
+            info.frame.BackgroundTransparency = math.min(0.95, info.baseTrans + (1 - pulse) * 0.3)
         end
     end)
 
-    -- Main card
+    -- Main glass card
     local card = makeFrame(dim, {
-        Size = UDim2.new(0, 460, 0, 420),
-        Position = UDim2.new(0.5, -230, 0.5, -210),
+        Size = UDim2.new(0, 480, 0, 460),
+        Position = UDim2.new(0.5, -240, 0.5, -230),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
         ZIndex = 10,
     })
-    makeUICorner(card, 16)
-    makeUIStroke(card, Colors.Purple, 1.5, 0)
+    makeUICorner(card, 18)
 
-    -- Inner highlight (top edge glow)
+    -- Gradient background on card
+    local cardGrad = Instance.new("UIGradient")
+    cardGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 15, 35)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(11, 11, 18)),
+    })
+    cardGrad.Rotation = 90
+    cardGrad.Parent = card
+
+    -- Double stroke: outer glow + inner crisp line
+    local cardStrokeOuter = Instance.new("UIStroke")
+    cardStrokeOuter.Color = Colors.Purple
+    cardStrokeOuter.Thickness = 2.5
+    cardStrokeOuter.Transparency = 0.6
+    cardStrokeOuter.Parent = card
+    local cardStrokeInner = Instance.new("UIStroke")
+    cardStrokeInner.Color = Color3.fromRGB(255, 255, 255)
+    cardStrokeInner.Thickness = 1
+    cardStrokeInner.Transparency = 0.92
+    cardStrokeInner.Parent = card
+
+    -- Top edge highlight
     local topGlow = makeFrame(card, {
-        Size = UDim2.new(1, 0, 0, 1),
+        Size = UDim2.new(0.6, 0, 0, 2),
+        Position = UDim2.new(0.2, 0, 0, 0),
         BackgroundColor3 = Colors.Purple,
-        BackgroundTransparency = 0.3,
+        BackgroundTransparency = 0.2,
         BorderSizePixel = 0,
         ZIndex = 11,
     })
     makeUICorner(topGlow, 1)
 
     local cardScale = Instance.new("UIScale")
-    cardScale.Scale = 0.8
+    cardScale.Scale = 0.75
     cardScale.Parent = card
-    TweenService:Create(cardScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+    TweenService:Create(cardScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
-    -- Logo circle with pulsing glow
+    -- Logo with spinning gradient ring
     local logoContainer = makeFrame(card, {
-        Size = UDim2.new(0, 72, 0, 72),
-        Position = UDim2.new(0.5, -36, 0, 36),
+        Size = UDim2.new(0, 100, 0, 100),
+        Position = UDim2.new(0.5, -50, 0, 32),
         BackgroundTransparency = 1,
         ZIndex = 12,
     })
 
+    -- Outer glow
     local logoGlow = makeFrame(logoContainer, {
-        Size = UDim2.new(1, 20, 1, 20),
-        Position = UDim2.new(0, -10, 0, -10),
+        Size = UDim2.new(1, 24, 1, 24),
+        Position = UDim2.new(0, -12, 0, -12),
         BackgroundColor3 = Colors.Purple,
-        BackgroundTransparency = 0.8,
+        BackgroundTransparency = 0.82,
         BorderSizePixel = 0,
         ZIndex = 11,
     })
-    makeUICorner(logoGlow, 46)
+    makeUICorner(logoGlow, 62)
 
-    local logoCircle = makeFrame(logoContainer, {
+    -- Spinning gradient ring (outer)
+    local ringOuter = makeFrame(logoContainer, {
         Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = Color3.fromRGB(100, 40, 200),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 12,
+    })
+    local ringStroke = Instance.new("UIStroke")
+    ringStroke.Color = Colors.Purple
+    ringStroke.Thickness = 2.5
+    ringStroke.Transparency = 0.2
+    ringStroke.Parent = ringOuter
+    local ringGrad = Instance.new("UIGradient")
+    ringGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Colors.Purple),
+        ColorSequenceKeypoint.new(0.5, Colors.Pink),
+        ColorSequenceKeypoint.new(1, Colors.Cyan),
+    })
+    ringGrad.Parent = ringStroke
+    makeUICorner(ringOuter, 50)
+
+    -- Spinning animation for outer ring
+    task.spawn(function()
+        while ringOuter.Parent do
+            TweenService:Create(ringGrad, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = 360}):Play()
+            task.wait(1.5)
+        end
+    end)
+
+    -- Inner spinning ring (opposite direction)
+    local ringInner = makeFrame(logoContainer, {
+        Size = UDim2.new(0, 82, 0, 82),
+        Position = UDim2.new(0.5, -41, 0.5, -41),
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ZIndex = 13,
     })
-    makeUICorner(logoCircle, 36)
-    makeUIStroke(logoCircle, Colors.Purple, 2, 0)
+    local ringStroke2 = Instance.new("UIStroke")
+    ringStroke2.Color = Colors.Cyan
+    ringStroke2.Thickness = 1.5
+    ringStroke2.Transparency = 0.4
+    ringStroke2.Parent = ringInner
+    local ringGrad2 = Instance.new("UIGradient")
+    ringGrad2.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Colors.Cyan),
+        ColorSequenceKeypoint.new(0.5, Colors.Purple),
+        ColorSequenceKeypoint.new(1, Colors.Pink),
+    })
+    ringGrad2.Parent = ringStroke2
+    makeUICorner(ringInner, 41)
+    task.spawn(function()
+        while ringInner.Parent do
+            TweenService:Create(ringGrad2, TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = -360}):Play()
+            task.wait(2)
+        end
+    end)
+
+    -- Logo core circle
+    local logoCircle = makeFrame(logoContainer, {
+        Size = UDim2.new(0, 64, 0, 64),
+        Position = UDim2.new(0.5, -32, 0.5, -32),
+        BackgroundColor3 = Color3.fromRGB(30, 15, 60),
+        BorderSizePixel = 0,
+        ZIndex = 14,
+    })
+    makeUICorner(logoCircle, 32)
+    local logoCircleGrad = Instance.new("UIGradient")
+    logoCircleGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 30, 160)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 10, 80)),
+    })
+    logoCircleGrad.Rotation = 90
+    logoCircleGrad.Parent = logoCircle
 
     local logoText = makeTextLabel(logoCircle, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = "🔥",
         TextColor3 = Colors.White,
-        TextSize = 32,
+        TextSize = 30,
         Font = Enum.Font.SourceSansBold,
-        ZIndex = 14,
+        ZIndex = 15,
     })
 
-    -- Pulsing logo animation
+    -- Pulsing logo glow
     task.spawn(function()
-        while card.Parent do
-            TweenService:Create(logoGlow, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.5}):Play()
-            TweenService:Create(logoCircle, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Size = UDim2.new(1.06, 0, 1.06, 0)}):Play()
-            task.wait(0.8)
-            TweenService:Create(logoGlow, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.85}):Play()
-            TweenService:Create(logoCircle, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-            task.wait(0.8)
+        while logoGlow.Parent do
+            TweenService:Create(logoGlow, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.6, Size = UDim2.new(1, 30, 1, 30), Position = UDim2.new(0, -15, 0, -15)}):Play()
+            task.wait(1)
+            TweenService:Create(logoGlow, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.88, Size = UDim2.new(1, 24, 1, 24), Position = UDim2.new(0, -12, 0, -12)}):Play()
+            task.wait(1)
         end
     end)
 
-    -- Title
+    -- Title with letter-spacing feel
     local title = makeTextLabel(card, {
-        Size = UDim2.new(1, -40, 0, 28),
-        Position = UDim2.new(0, 20, 0, 122),
+        Size = UDim2.new(1, -40, 0, 30),
+        Position = UDim2.new(0, 20, 0, 140),
         BackgroundTransparency = 1,
-        Text = "DAYI SCRIPT HUB",
+        Text = "D A Y I   S C R I P T   H U B",
         TextColor3 = Colors.Text,
-        TextSize = 22,
+        TextSize = 20,
         TextXAlignment = Enum.TextXAlignment.Center,
         Font = Enum.Font.SourceSansBold,
         ZIndex = 12,
     })
 
-    -- Subtitle (status text that changes)
+    -- Version badge
+    local versionBadge = makeFrame(card, {
+        Size = UDim2.new(0, 60, 0, 18),
+        Position = UDim2.new(0.5, -30, 0, 172),
+        BackgroundColor3 = Colors.PurpleDk,
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0,
+        ZIndex = 12,
+    })
+    makeUICorner(versionBadge, 9)
+    makeTextLabel(versionBadge, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "v10.2",
+        TextColor3 = Colors.Purple,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Font = Enum.Font.SourceSansBold,
+        ZIndex = 13,
+    })
+
+    -- Subtitle (status text)
     local subtitle = makeTextLabel(card, {
         Size = UDim2.new(1, -40, 0, 18),
-        Position = UDim2.new(0, 20, 0, 152),
+        Position = UDim2.new(0, 20, 0, 198),
         BackgroundTransparency = 1,
-        Text = "Initializing...",
+        Text = "Initializing core systems...",
         TextColor3 = Colors.Purple,
         TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Center,
@@ -4332,56 +4491,88 @@ local function showLoadingScreen(onComplete)
 
     -- Progress bar background
     local barBg = makeFrame(card, {
-        Size = UDim2.new(1, -40, 0, 6),
-        Position = UDim2.new(0, 20, 0, 184),
-        BackgroundColor3 = Color3.fromRGB(30, 30, 45),
+        Size = UDim2.new(1, -40, 0, 8),
+        Position = UDim2.new(0, 20, 0, 226),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 40),
         BorderSizePixel = 0,
         ZIndex = 12,
     })
-    makeUICorner(barBg, 3)
+    makeUICorner(barBg, 4)
+    local barBgStroke = Instance.new("UIStroke")
+    barBgStroke.Color = Color3.fromRGB(40, 40, 60)
+    barBgStroke.Thickness = 1
+    barBgStroke.Transparency = 0.5
+    barBgStroke.Parent = barBg
 
-    -- Progress bar fill (gradient)
+    -- Progress bar fill with gradient
     local barFill = makeFrame(barBg, {
         Size = UDim2.new(0, 0, 1, 0),
         BackgroundColor3 = Colors.Purple,
         BorderSizePixel = 0,
         ZIndex = 13,
     })
-    makeUICorner(barFill, 3)
+    makeUICorner(barFill, 4)
+    local barGrad = Instance.new("UIGradient")
+    barGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Colors.Purple),
+        ColorSequenceKeypoint.new(0.5, Colors.Pink),
+        ColorSequenceKeypoint.new(1, Colors.Cyan),
+    })
+    barGrad.Parent = barFill
 
-    -- Shimmer overlay on progress bar
+    -- Shimmer sweep on progress bar
     local shimmer = makeFrame(barFill, {
-        Size = UDim2.new(0, 40, 1, 0),
-        Position = UDim2.new(1, -40, 0, 0),
+        Size = UDim2.new(0, 50, 1, 0),
+        Position = UDim2.new(1, -50, 0, 0),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.7,
+        BackgroundTransparency = 0.6,
         BorderSizePixel = 0,
         ZIndex = 14,
     })
-    makeUICorner(shimmer, 3)
+    makeUICorner(shimmer, 4)
+    local shimmerGrad = Instance.new("UIGradient")
+    shimmerGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0.3),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    shimmerGrad.Parent = shimmer
 
-    -- Progress percentage text
+    -- Progress percentage + step counter
     local pctLabel = makeTextLabel(card, {
-        Size = UDim2.new(1, -40, 0, 16),
-        Position = UDim2.new(0, 20, 0, 196),
+        Size = UDim2.new(0, 80, 0, 16),
+        Position = UDim2.new(1, -100, 0, 240),
         BackgroundTransparency = 1,
         Text = "0%",
-        TextColor3 = Colors.TextDim,
-        TextSize = 12,
+        TextColor3 = Colors.Text,
+        TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Right,
+        Font = Enum.Font.SourceSansBold,
+        ZIndex = 12,
+    })
+
+    local stepLabel = makeTextLabel(card, {
+        Size = UDim2.new(0, 80, 0, 16),
+        Position = UDim2.new(0, 20, 0, 240),
+        BackgroundTransparency = 1,
+        Text = "0 / 6 modules",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSans,
         ZIndex = 12,
     })
 
-    -- Divider line
+    -- Divider
     local divider = makeFrame(card, {
         Size = UDim2.new(1, -40, 0, 1),
-        Position = UDim2.new(0, 20, 0, 224),
-        BackgroundColor3 = Colors.Border,
-        BackgroundTransparency = 0.92,
+        Position = UDim2.new(0, 20, 0, 266),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.9,
         BorderSizePixel = 0,
         ZIndex = 12,
     })
+    makeUICorner(divider, 1)
 
     -- Module list
     local modules = {
@@ -4393,8 +4584,8 @@ local function showLoadingScreen(onComplete)
         {name = "Notification System",  icon = "🔔", status = "Binding UI events..."},
     }
 
-    local listStartY = 240
-    local rowH = 28
+    local listStartY = 280
+    local rowH = 26
     local moduleLabels = {}
 
     for i, mod in ipairs(modules) do
@@ -4402,34 +4593,44 @@ local function showLoadingScreen(onComplete)
             Size = UDim2.new(1, -40, 0, rowH),
             Position = UDim2.new(0, 20, 0, listStartY + (i - 1) * rowH),
             BackgroundColor3 = Colors.Card,
-            BackgroundTransparency = 0.5,
+            BackgroundTransparency = 0.6,
             BorderSizePixel = 0,
             ZIndex = 12,
         })
         makeUICorner(row, 6)
+        local rowStroke = Instance.new("UIStroke")
+        rowStroke.Color = Color3.fromRGB(40, 40, 60)
+        rowStroke.Thickness = 1
+        rowStroke.Transparency = 0.7
+        rowStroke.Parent = row
 
         local iconCircle = makeFrame(row, {
-            Size = UDim2.new(0, 22, 0, 22),
-            Position = UDim2.new(0, 8, 0.5, -11),
+            Size = UDim2.new(0, 20, 0, 20),
+            Position = UDim2.new(0, 8, 0.5, -10),
             BackgroundColor3 = Colors.Panel,
             BorderSizePixel = 0,
             ZIndex = 13,
         })
-        makeUICorner(iconCircle, 11)
+        makeUICorner(iconCircle, 10)
+        local iconStroke = Instance.new("UIStroke")
+        iconStroke.Color = Colors.Purple
+        iconStroke.Thickness = 1
+        iconStroke.Transparency = 0.6
+        iconStroke.Parent = iconCircle
 
-        makeTextLabel(iconCircle, {
+        local iconLabel = makeTextLabel(iconCircle, {
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             Text = mod.icon,
             TextColor3 = Colors.TextDim,
-            TextSize = 12,
+            TextSize = 11,
             Font = Enum.Font.SourceSansBold,
             ZIndex = 14,
         })
 
         local nameLabel = makeTextLabel(row, {
-            Size = UDim2.new(1, -80, 1, 0),
-            Position = UDim2.new(0, 38, 0, 0),
+            Size = UDim2.new(1, -90, 1, 0),
+            Position = UDim2.new(0, 34, 0, 0),
             BackgroundTransparency = 1,
             Text = mod.name,
             TextColor3 = Colors.TextDim,
@@ -4439,55 +4640,141 @@ local function showLoadingScreen(onComplete)
             ZIndex = 13,
         })
 
-        local statusLabel = makeTextLabel(row, {
-            Size = UDim2.new(0, 50, 1, 0),
-            Position = UDim2.new(1, -58, 0, 0),
+        -- Status area: spinner while loading, checkmark when done
+        local statusFrame = makeFrame(row, {
+            Size = UDim2.new(0, 40, 1, 0),
+            Position = UDim2.new(1, -48, 0, 0),
             BackgroundTransparency = 1,
-            Text = "",
-            TextColor3 = Colors.TextFaint,
-            TextSize = 13,
-            TextXAlignment = Enum.TextXAlignment.Right,
-            Font = Enum.Font.SourceSansBold,
             ZIndex = 13,
         })
 
-        -- Slide-in animation
-        row.Position = UDim2.new(0, 20 + 30, 0, listStartY + (i - 1) * rowH)
-        row.BackgroundTransparency = 1
-        TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 20, 0, listStartY + (i - 1) * rowH), BackgroundTransparency = 0.5}):Play()
+        -- Spinner (rotating arc)
+        local spinner = makeFrame(statusFrame, {
+            Size = UDim2.new(0, 14, 0, 14),
+            Position = UDim2.new(0.5, -7, 0.5, -7),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ZIndex = 14,
+        })
+        local spinnerStroke = Instance.new("UIStroke")
+        spinnerStroke.Color = Colors.Purple
+        spinnerStroke.Thickness = 2
+        spinnerStroke.Transparency = 0.2
+        spinnerStroke.Parent = spinner
+        makeUICorner(spinner, 7)
+        -- Cutout to make it an arc (overlay half)
+        local spinnerCut = makeFrame(spinner, {
+            Size = UDim2.new(1, 1, 1, 1),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundColor3 = Colors.Card,
+            BackgroundTransparency = 0.6,
+            BorderSizePixel = 0,
+            ZIndex = 15,
+        })
+        makeUICorner(spinnerCut, 7)
 
-        moduleLabels[i] = {row = row, status = statusLabel, name = mod.name, icon = mod.icon, iconCircle = iconCircle, nameLabel = nameLabel, desc = mod.status}
+        local statusLabel = makeTextLabel(statusFrame, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            TextColor3 = Color3.fromRGB(100, 220, 130),
+            TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            Font = Enum.Font.SourceSansBold,
+            ZIndex = 14,
+        })
+
+        -- Spinner rotation
+        local spinnerConn
+        spinnerConn = RunService.RenderStepped:Connect(function()
+            if spinner.Parent then
+                spinner.Rotation = spinner.Rotation + 6
+            else
+                spinnerConn:Disconnect()
+            end
+        end)
+
+        -- Slide-in animation
+        row.Position = UDim2.new(0, 50, 0, listStartY + (i - 1) * rowH)
+        row.BackgroundTransparency = 1
+        TweenService:Create(row, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 20, 0, listStartY + (i - 1) * rowH), BackgroundTransparency = 0.6}):Play()
+
+        moduleLabels[i] = {
+            row = row, status = statusLabel, name = mod.name, icon = mod.icon,
+            iconCircle = iconCircle, iconLabel = iconLabel, nameLabel = nameLabel,
+            desc = mod.status, spinner = spinner, spinnerCut = spinnerCut, spinnerConn = spinnerConn,
+        }
     end
+
+    -- Tips carousel at bottom
+    local tips = {
+        "Tip: Press RightShift to toggle the UI anytime",
+        "Tip: Join our Discord for updates & support",
+        "Tip: Premium unlocks exclusive features",
+        "Tip: Customize your accent color in Settings",
+    }
+    local tipLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 16),
+        Position = UDim2.new(0, 20, 0, 436),
+        BackgroundTransparency = 1,
+        Text = tips[1],
+        TextColor3 = Colors.TextFaint,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Font = Enum.Font.SourceSans,
+        ZIndex = 12,
+    })
+    local tipIdx = 1
+    task.spawn(function()
+        while tipLabel.Parent do
+            task.wait(2)
+            tipIdx = (tipIdx % #tips) + 1
+            TweenService:Create(tipLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+            task.wait(0.2)
+            tipLabel.Text = tips[tipIdx]
+            TweenService:Create(tipLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        end
+    end)
 
     -- Animate progress
     local totalSteps = #modules
-    local stepDuration = 0.32
+    local stepDuration = 0.38
 
     task.spawn(function()
         for i = 1, totalSteps do
             local pct = math.floor((i / totalSteps) * 100)
 
-            -- Update subtitle
+            -- Update subtitle with fade
+            TweenService:Create(subtitle, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+            task.wait(0.15)
             subtitle.Text = moduleLabels[i].desc
+            TweenService:Create(subtitle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 
             -- Animate bar fill
             TweenService:Create(barFill, TweenInfo.new(stepDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(i / totalSteps, 0, 1, 0)}):Play()
             pctLabel.Text = pct .. "%"
+            stepLabel.Text = i .. " / " .. totalSteps .. " modules"
 
             -- Shimmer sweep
-            TweenService:Create(shimmer, TweenInfo.new(stepDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, -40, 0, 0)}):Play()
+            shimmer.Position = UDim2.new(0, -50, 0, 0)
+            TweenService:Create(shimmer, TweenInfo.new(stepDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, -50, 0, 0)}):Play()
 
             -- Mark module as loaded
             local ml = moduleLabels[i]
-            ml.status.Text = "✔"
-            TweenService:Create(ml.status, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130)}):Play()
-            TweenService:Create(ml.nameLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
-            TweenService:Create(ml.iconCircle, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleDk}):Play()
+            -- Stop spinner, show checkmark
+            ml.spinnerCut:Destroy()
+            ml.spinner:Destroy()
+            if ml.spinnerConn then ml.spinnerConn:Disconnect() end
+            ml.status.Text = "✓"
+            TweenService:Create(ml.status, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130)}):Play()
+            TweenService:Create(ml.nameLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
+            TweenService:Create(ml.iconLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
+            TweenService:Create(ml.iconCircle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleDk}):Play()
 
-            -- Row highlight pulse
-            TweenService:Create(ml.row, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleDk, BackgroundTransparency = 0.3}):Play()
+            -- Row highlight burst
+            TweenService:Create(ml.row, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple, BackgroundTransparency = 0.2}):Play()
             task.delay(0.3, function()
-                TweenService:Create(ml.row, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Card, BackgroundTransparency = 0.5}):Play()
+                TweenService:Create(ml.row, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Card, BackgroundTransparency = 0.6}):Play()
             end)
 
             task.wait(stepDuration)
@@ -4495,16 +4782,40 @@ local function showLoadingScreen(onComplete)
 
         -- Final 100%
         pctLabel.Text = "100%"
+        stepLabel.Text = "All modules loaded"
         subtitle.Text = "Ready to launch!"
-        TweenService:Create(subtitle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130)}):Play()
-        task.wait(0.5)
+        TweenService:Create(subtitle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130), TextTransparency = 0}):Play()
 
-        -- Fade out
+        -- Logo celebration pulse
+        TweenService:Create(logoCircle, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 72, 0, 72)}):Play()
+        task.delay(0.2, function()
+            TweenService:Create(logoCircle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, 64, 0, 64)}):Play()
+        end)
+        TweenService:Create(logoGlow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.3}):Play()
+        task.delay(0.4, function()
+            TweenService:Create(logoGlow, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.82}):Play()
+        end)
+
+        task.wait(0.6)
+
+        -- Fade out with blur-like effect
         if particleConn then particleConn:Disconnect() end
-        TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
-        TweenService:Create(dim, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-        TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-        task.wait(0.35)
+        TweenService:Create(cardScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.75}):Play()
+        TweenService:Create(dim, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(cardStrokeOuter, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+        TweenService:Create(cardStrokeInner, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+        -- Fade all card children
+        for _, child in ipairs(card:GetDescendants()) do
+            if child:IsA("TextLabel") then
+                TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+            elseif child:IsA("Frame") and child ~= card then
+                TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+            elseif child:IsA("UIStroke") then
+                TweenService:Create(child, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+            end
+        end
+        task.wait(0.4)
         loadGui:Destroy()
         if onComplete then onComplete() end
     end)
