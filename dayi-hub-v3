@@ -2687,15 +2687,13 @@ local function removeBoxESP(boxData)
 end
 
 local function createSkeletonESP(player)
-    local char = player.Character
-    if not char then return nil, nil end
-
     local gui = getESPGui()
     local folder = Instance.new("Folder")
     folder.Name = "DAYI_ESP_Skel_" .. player.Name
     folder.Parent = gui
 
-    local bones = {
+    -- R15 bone connections
+    local bonesR15 = {
         {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
         {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"},
         {"LeftLowerArm", "LeftHand"},
@@ -2707,40 +2705,80 @@ local function createSkeletonESP(player)
         {"RightLowerLeg", "RightFoot"},
     }
 
+    -- R6 bone connections
+    local bonesR6 = {
+        {"Head", "Torso"},
+        {"Torso", "Left Arm"},
+        {"Torso", "Right Arm"},
+        {"Torso", "Left Leg"},
+        {"Torso", "Right Leg"},
+    }
+
     local lines = {}
-    for _, b in ipairs(bones) do
-        local p1 = char:FindFirstChild(b[1])
-        local p2 = char:FindFirstChild(b[2])
-        if p1 and p2 then
-            local line = Instance.new("Frame")
-            line.Name = "Bone_" .. b[1] .. "_" .. b[2]
-            line.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
-            line.BorderSizePixel = 0
-            line.Size = UDim2.new(0, 1, 0, 1)
-            line.Visible = false
-            line.ZIndex = 50
-            line.Parent = folder
-            table.insert(lines, { line = line, p1 = p1, p2 = p2 })
-        end
+    for _, b in ipairs(bonesR15) do
+        local line = Instance.new("Frame")
+        line.Name = "BoneR15_" .. b[1] .. "_" .. b[2]
+        line.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+        line.BorderSizePixel = 0
+        line.Size = UDim2.new(0, 1, 0, 1)
+        line.Visible = false
+        line.ZIndex = 50
+        line.Parent = folder
+        table.insert(lines, { line = line, p1Name = b[1], p2Name = b[2], isR6 = false })
+    end
+    for _, b in ipairs(bonesR6) do
+        local line = Instance.new("Frame")
+        line.Name = "BoneR6_" .. b[1] .. "_" .. b[2]
+        line.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+        line.BorderSizePixel = 0
+        line.Size = UDim2.new(0, 1, 0, 1)
+        line.Visible = false
+        line.ZIndex = 50
+        line.Parent = folder
+        table.insert(lines, { line = line, p1Name = b[1], p2Name = b[2], isR6 = true })
     end
     return folder, lines
 end
 
-local function updateSkeletonLines(lines)
+local function updateSkeletonLines(lines, player)
     if not lines then return end
+    local char = player.Character
+    if not char then
+        for _, bone in ipairs(lines) do
+            bone.line.Visible = false
+        end
+        return
+    end
+
+    -- Detect rig type once
+    local isR6 = char:FindFirstChild("Torso") ~= nil
+    local espColor = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+
     for _, bone in ipairs(lines) do
         if bone.line.Parent then
-            local pos1, vis1 = Camera:WorldToViewportPoint(bone.p1.Position)
-            local pos2, vis2 = Camera:WorldToViewportPoint(bone.p2.Position)
-            if vis1 and vis2 then
-                bone.line.Visible = true
-                local dist = (Vector2.new(pos1.X, pos1.Y) - Vector2.new(pos2.X, pos2.Y)).Magnitude
-                local angle = math.atan2(pos2.Y - pos1.Y, pos2.X - pos1.X)
-                bone.line.Size = UDim2.new(0, dist, 0, 2)
-                bone.line.Position = UDim2.new(0, pos1.X, 0, pos1.Y)
-                bone.line.Rotation = math.deg(angle)
-            else
+            -- Skip if this bone is for the wrong rig type
+            if bone.isR6 ~= isR6 then
                 bone.line.Visible = false
+            else
+                local p1 = char:FindFirstChild(bone.p1Name)
+                local p2 = char:FindFirstChild(bone.p2Name)
+                if p1 and p2 then
+                    local pos1, vis1 = Camera:WorldToViewportPoint(p1.Position)
+                    local pos2, vis2 = Camera:WorldToViewportPoint(p2.Position)
+                    if vis1 and vis2 then
+                        bone.line.Visible = true
+                        bone.line.BackgroundColor3 = espColor
+                        local dist = (Vector2.new(pos1.X, pos1.Y) - Vector2.new(pos2.X, pos2.Y)).Magnitude
+                        local angle = math.atan2(pos2.Y - pos1.Y, pos2.X - pos1.X)
+                        bone.line.Size = UDim2.new(0, dist, 0, 2)
+                        bone.line.Position = UDim2.new(0, pos1.X, 0, pos1.Y)
+                        bone.line.Rotation = math.deg(angle)
+                    else
+                        bone.line.Visible = false
+                    end
+                else
+                    bone.line.Visible = false
+                end
             end
         end
     end
@@ -2851,7 +2889,7 @@ local function updateESP()
                 espData.box.healthBarFill.Visible = false
             end
             if espData.skeletonLines and Config.SkeletonESP then
-                updateSkeletonLines(espData.skeletonLines)
+                updateSkeletonLines(espData.skeletonLines, player)
             elseif espData.skeletonLines then
                 for _, bone in ipairs(espData.skeletonLines) do
                     bone.line.Visible = false
