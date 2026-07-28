@@ -49,6 +49,7 @@ local Config = {
     Target             = "Head",
     ShowCircle         = false,
     CircleRadius       = 150,
+    CircleColor        = Color3.fromRGB(0, 220, 220),
     SpeedHack          = false,
     WalkSpeed          = 16,
     BunnyHop           = false,
@@ -1840,6 +1841,35 @@ local function buildPremiumPage()
             DayiHub.SetAccentTheme(themeName)
         end)
 
+    -- Circle color picker (direct colors, not themes)
+    local circleColors = {
+        { name = "Cyan",   color = Color3.fromRGB(0, 220, 220) },
+        { name = "Red",    color = Color3.fromRGB(255, 60, 60) },
+        { name = "Green",  color = Color3.fromRGB(34, 197, 94) },
+        { name = "Pink",   color = Color3.fromRGB(236, 72, 153) },
+        { name = "Purple", color = Color3.fromRGB(160, 60, 255) },
+        { name = "Amber",  color = Color3.fromRGB(251, 191, 36) },
+        { name = "White",  color = Color3.fromRGB(255, 255, 255) },
+    }
+    local currentCircleColorName = "Cyan"
+    for _, c in ipairs(circleColors) do
+        if Config.CircleColor and c.color == Config.CircleColor then
+            currentCircleColorName = c.name
+            break
+        end
+    end
+    createColorPickerRow(scroll, "⭕", "Circle Color", Colors.Cyan,
+        {"Cyan", "Red", "Green", "Pink", "Purple", "Amber", "White"},
+        currentCircleColorName,
+        function(colorName)
+            for _, c in ipairs(circleColors) do
+                if c.name == colorName then
+                    DayiHub.SetCircleColor(c.color)
+                    break
+                end
+            end
+        end)
+
     -- Coming soon notice
     local noticeCard = makeFrame(scroll, {
         Size = UDim2.new(1, 0, 0, 56),
@@ -3003,40 +3033,69 @@ local function toggleMobileAimbot()
 end
 
 --==========================================================================
--- SHOW CIRCLE
+-- SHOW CIRCLE  (2D on-screen ring)
 --==========================================================================
+local CircleGui = nil
+local CircleFrame = nil
+local CircleStroke = nil
+
+local function getCircleGui()
+    if CircleGui and CircleGui.Parent then return CircleGui end
+    CircleGui = Instance.new("ScreenGui")
+    CircleGui.Name = "DAYI_CIRCLE"
+    CircleGui.ResetOnSpawn = false
+    CircleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    CircleGui.IgnoreGuiInset = true
+    pcall(function() CircleGui.Parent = CoreGui end)
+    if CircleGui.Parent == nil then
+        CircleGui.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    end
+    return CircleGui
+end
+
+local function buildCircleFrame()
+    local gui = getCircleGui()
+    if CircleFrame and CircleFrame.Parent then return CircleFrame end
+
+    CircleFrame = Instance.new("Frame")
+    CircleFrame.Name = "Ring"
+    CircleFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    CircleFrame.BackgroundTransparency = 1
+    CircleFrame.Visible = false
+    CircleFrame.ZIndex = 30
+    CircleFrame.Parent = gui
+
+    CircleStroke = Instance.new("UIStroke")
+    CircleStroke.Color = Config.CircleColor or Color3.fromRGB(0, 220, 220)
+    CircleStroke.Thickness = 2
+    CircleStroke.Transparency = 0
+    CircleStroke.Parent = CircleFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = CircleFrame
+
+    return CircleFrame
+end
+
 local function updateCircle()
+    local frame = buildCircleFrame()
     if Config.ShowCircle then
-        if not State.CirclePart then
-            local part = Instance.new("Part")
-            part.Name = "DAYI_AimCircle"
-            part.Shape = Enum.PartType.Cylinder
-            part.Material = Enum.Material.ForceField
-            part.Color = Color3.fromRGB(0, 220, 220)
-            part.Transparency = 0.8
-            part.Anchored = true
-            part.CanCollide = false
-            part.CanQuery = false
-            part.CanTouch = false
-            part.Parent = Workspace
-            State.CirclePart = part
+        local radius = Config.CircleRadius or 150
+        frame.Size = UDim2.new(0, radius * 2, 0, radius * 2)
+        frame.Position = UDim2.new(0.5, -radius, 0.5, -radius)
+        if CircleStroke then
+            CircleStroke.Color = Config.CircleColor or Color3.fromRGB(0, 220, 220)
         end
-        State.CirclePart.Size = Vector3.new(0.1, Config.CircleRadius * 2, Config.CircleRadius * 2)
-        State.CirclePart.CFrame = Camera.CFrame * CFrame.Angles(0, math.rad(90), 0) * CFrame.new(0, 0, -3)
+        frame.Visible = true
     else
-        if State.CirclePart then
-            State.CirclePart:Destroy()
-            State.CirclePart = nil
-        end
+        frame.Visible = false
     end
 end
 
 local function startCircleUpdater()
-    RunService.RenderStepped:Connect(function()
-        if State.CirclePart and Config.ShowCircle then
-            State.CirclePart.CFrame = Camera.CFrame * CFrame.Angles(0, math.rad(90), 0) * CFrame.new(0, 0, -3)
-        end
-    end)
+    -- No per-frame update needed for 2D ring; it stays centered on screen.
+    -- Kept for compatibility.
 end
 
 --==========================================================================
@@ -3077,30 +3136,35 @@ local function startFly()
     hum.PlatformStand = true
 
     local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    bv.Velocity = Vector3.zero
+    bv.MaxForce = Vector3.new(400000, 400000, 400000)
+    bv.Velocity = Vector3.new(0, 0, 0)
     bv.Parent = hrp
     State.FlyBodyVelocity = bv
 
     local gyro = Instance.new("BodyGyro")
-    gyro.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    gyro.D = 100
-    gyro.P = 10000
+    gyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    gyro.P = 12500
     gyro.CFrame = Camera.CFrame
     gyro.Parent = hrp
     State.FlyBodyGyro = gyro
 
-    State.FlyConnection = RunService.RenderStepped:Connect(function()
-        local dir = Vector3.zero
-        local camCF = Camera.CFrame
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += camCF.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= camCF.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= camCF.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += camCF.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.new(0, 1, 0) end
-        if dir.Magnitude > 0 then dir = dir.Unit * Config.FlySpeed end
-        bv.Velocity = dir
+    State.FlyConnection = RunService.Heartbeat:Connect(function()
+        if not Config.FlyMode or not hrp or not bv then return end
+
+        local move = Vector3.new(0, 0, 0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
+
+        if move.Magnitude > 0 then
+            bv.Velocity = move.Unit * Config.FlySpeed
+        else
+            bv.Velocity = Vector3.new(0, 0, 0)
+        end
+
         gyro.CFrame = Camera.CFrame
     end)
 end
@@ -3282,6 +3346,11 @@ function DayiHub.SetAccentTheme(themeName)
         PageFrames["Premium"].Visible = true
     end
     notify("DAYI HUB", "UI color changed to " .. themeName .. ".", 3)
+end
+
+function DayiHub.SetCircleColor(color)
+    Config.CircleColor = color
+    updateCircle()
 end
 
 function DayiHub.SetTarget(target)
