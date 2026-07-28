@@ -118,6 +118,7 @@ local State = {
     TextureBackup       = {},
     WaterBackup          = {},
     GrassBackup         = {},
+    VFXConnection       = nil,
     UIVisible           = true,
 }
 
@@ -2358,12 +2359,46 @@ local function applyFPSBooster()
     end)
 end
 
+local function destroyVFX(obj)
+    pcall(function()
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+        or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            obj.Enabled = false
+            if obj:IsA("ParticleEmitter") then
+                obj.Rate = 0
+                obj.Size = NumberSequence.new(0)
+            end
+        end
+    end)
+end
+
+local function restoreVFX(obj)
+    pcall(function()
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+        or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            obj.Enabled = true
+        end
+    end)
+end
+
 local function applyVFXRemover()
     pcall(function()
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam")
-               or v:IsA("Sparkles") or v:IsA("Smoke") or v:IsA("Fire") then
-                v.Enabled = not Config.VFXRemover
+        if Config.VFXRemover then
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                destroyVFX(v)
+            end
+            if not State.VFXConnection then
+                State.VFXConnection = Workspace.DescendantAdded:Connect(function(obj)
+                    task.defer(destroyVFX, obj)
+                end)
+            end
+        else
+            if State.VFXConnection then
+                State.VFXConnection:Disconnect()
+                State.VFXConnection = nil
+            end
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                restoreVFX(v)
             end
         end
     end)
