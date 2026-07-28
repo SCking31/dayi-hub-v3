@@ -3203,13 +3203,13 @@ local function setupBunnyHop()
         State.BunnyHopConnection = nil
     end
     if Config.BunnyHop then
-        State.BunnyHopConnection = RunService.Heartbeat:Connect(function()
-            if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then return end
-            local hum = getHumanoid(LocalPlayer)
-            if not hum or hum.Health <= 0 then return end
-            local state = hum:GetState()
-            if state == Enum.HumanoidStateType.Landed then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        local hum = getHumanoid(LocalPlayer)
+        if not hum then return end
+        State.BunnyHopConnection = hum.StateChanged:Connect(function(old, new)
+            if new == Enum.HumanoidStateType.Landed then
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
             end
         end)
     end
@@ -3383,6 +3383,7 @@ local function onCharacterAdded(char)
     end
     applyUnlimitedZoom()
     applyWalkSpeed()
+    if Config.BunnyHop then setupBunnyHop() end
     if Config.FlyMode then toggleFly() end
     if Config.Noclip then toggleNoclip() end
     refreshAllESP()
