@@ -128,6 +128,7 @@ local State = {
     FlyBodyGyro         = nil,
     NoclipConnection    = nil,
     BunnyHopConnection  = nil,
+    BunnyHopSpeedConn    = nil,
     InfiniteJumpConn    = nil,
     GodModeConnection   = nil,
     AntiRagdollConn     = nil,
@@ -3286,6 +3287,14 @@ local function setupBunnyHop()
         State.BunnyHopConnection:Disconnect()
         State.BunnyHopConnection = nil
     end
+    if State.BunnyHopSpeedConn then
+        State.BunnyHopSpeedConn:Disconnect()
+        State.BunnyHopSpeedConn = nil
+    end
+    local hum = getHumanoid(LocalPlayer)
+    if hum and State.OriginalWalkSpeed then
+        hum.WalkSpeed = State.OriginalWalkSpeed
+    end
     if Config.BunnyHop then
         State.BunnyHopConnection = RunService.Heartbeat:Connect(function()
             local hum = getHumanoid(LocalPlayer)
@@ -3297,6 +3306,18 @@ local function setupBunnyHop()
                 or state == Enum.HumanoidStateType.PlatformStanding then
                     hum:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
+            end
+        end)
+        State.BunnyHopSpeedConn = RunService.Heartbeat:Connect(function()
+            local hum = getHumanoid(LocalPlayer)
+            if not hum or hum.Health <= 0 then return end
+            local baseSpeed = State.OriginalWalkSpeed or hum.WalkSpeed
+            local inAir = hum:GetState() == Enum.HumanoidStateType.Freefall
+                or hum:GetState() == Enum.HumanoidStateType.Jumping
+            if inAir and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                hum.WalkSpeed = baseSpeed * 1.08
+            else
+                hum.WalkSpeed = baseSpeed
             end
         end)
     end
