@@ -755,12 +755,13 @@ local function createBindKeyRow(parent, iconText, label, accentColor, onKey, ini
     })
 
     local keyBtn = makeButton(row, {
-        Size = UDim2.new(0, 90, 0, 30),
-        Position = UDim2.new(1, -104, 0.5, -15),
+        Size = UDim2.new(0, 110, 0, 30),
+        Position = UDim2.new(1, -124, 0.5, -15),
         BackgroundColor3 = accentColor,
         Text = currentKey,
         TextColor3 = Colors.Text,
         TextSize = 11,
+        TextScaled = true,
         Font = Enum.Font.SourceSansBold,
     })
     makeUICorner(keyBtn, 8)
@@ -1171,7 +1172,7 @@ local function buildGUI()
 
     --==== SIDEBAR ====
     local sidebar = makeFrame(MainFrame, {
-        Size = UDim2.new(0, 180, 1, -54),
+        Size = UDim2.new(0, 180, 1, -104),
         Position = UDim2.new(0, 0, 0, 54),
         BackgroundColor3 = Colors.Sidebar,
         BorderSizePixel = 0,
@@ -2104,6 +2105,10 @@ local function buildSettingsPage()
     createBindKeyRow(scroll, "⌨️", "Toggle UI Key", Colors.Purple, function(key)
         DayiHub.SetUIToggleKey(key)
     end, Config.UIToggleKey)
+
+    createSliderRow(scroll, "📐", "UI Scale", 80, 120, 100, Colors.Purple, function(val)
+        DayiHub.SetSlider("UIScale", val)
+    end)
 
     createSliderRow(scroll, "📷", "Camera FOV", 1, 120, 70, Colors.Cyan, function(val)
         DayiHub.SetSlider("CameraFOV", val)
@@ -3548,6 +3553,10 @@ function DayiHub.SetSlider(name, value)
     elseif name == "JumpPower" then applyJumpPower()
     elseif name == "CameraFOV" then applyCameraFOV()
     elseif name == "RGBSpeed" then Config.RGBSpeed = value
+    elseif name == "UIScale" then
+        if MainFrameScale then
+            MainFrameScale.Scale = value / 100
+        end
     end
 end
 
