@@ -1,0 +1,3698 @@
+--[[
+══════════════════════════════════════════════════════════════════════════════
+    DAYI SCRIPT HUB v10.0
+    Premium Utility Hub
+    Owner & Developer: syfix
+    Discord: discord.gg/dayikey
+
+    All-in-one Lua script with built-in Roblox GUI (no external UI needed).
+══════════════════════════════════════════════════════════════════════════════
+]]
+
+--==========================================================================
+-- Services
+--==========================================================================
+local Players           = game:GetService("Players")
+local RunService         = game:GetService("RunService")
+local UserInputService   = game:GetService("UserInputService")
+local Workspace          = game:GetService("Workspace")
+local Lighting           = game:GetService("Lighting")
+local CoreGui            = game:GetService("CoreGui")
+local TweenService        = game:GetService("TweenService")
+local HttpService         = game:GetService("HttpService")
+local StarterGui         = game:GetService("StarterGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera      = Workspace.CurrentCamera
+
+--==========================================================================
+-- Config
+--==========================================================================
+local Config = {
+    UnlimitedZoom      = false,
+    FPSBooster         = false,
+    VFXRemover         = false,
+    TextureOptimizer   = false,
+    ShadowRemover      = false,
+    LightOptimizer     = false,
+    WaterOptimizer     = false,
+    GrassOptimizer     = false,
+    WallhackESP        = false,
+    SkeletonESP        = false,
+    BoxESP             = false,
+    NameESP            = false,
+    Aimbot             = false,
+    MobileAimbot      = false,
+    BindKey            = "None",
+    UIToggleKey        = "RightShift",
+    AccentTheme        = "Purple",
+    Target             = "Head",
+    ShowCircle         = false,
+    CircleRadius       = 150,
+    SpeedHack          = false,
+    WalkSpeed          = 16,
+    BunnyHop           = false,
+    FlyMode            = false,
+    FlySpeed           = 25,
+    Noclip             = false,
+    InfiniteJump       = false,
+    JumpPower          = 50,
+    AntiRagdoll        = false,
+    GodMode            = false,
+    AimbotSmoothness   = 0.15,
+    FOVCheck           = false,
+    TeamCheck          = false,
+    VisibilityCheck    = false,
+    FirstLaunch         = true,
+}
+
+--==========================================================================
+-- CONFIG PERSISTENCE
+--==========================================================================
+local ConfigFile = "dayi_hub_v10_config.json"
+
+local function saveConfig()
+    pcall(function()
+        local json = HttpService:JSONEncode(Config)
+        writefile(ConfigFile, json)
+    end)
+end
+
+local function loadConfig()
+    pcall(function()
+        if isfile(ConfigFile) then
+            local json = readfile(ConfigFile)
+            local saved = HttpService:JSONDecode(json)
+            if saved and type(saved) == "table" then
+                for k, v in pairs(saved) do
+                    Config[k] = v
+                end
+            end
+        end
+    end)
+end
+
+--==========================================================================
+-- State
+--==========================================================================
+local State = {
+    ESPObjects          = {},
+    AimbotConnection    = nil,
+    MobileAimbotConn    = nil,
+    FlyConnection       = nil,
+    FlyBodyVelocity     = nil,
+    FlyBodyGyro         = nil,
+    NoclipConnection    = nil,
+    BunnyHopConnection  = nil,
+    InfiniteJumpConn    = nil,
+    GodModeConnection   = nil,
+    AntiRagdollConn     = nil,
+    CirclePart          = nil,
+    BindKeyDown         = false,
+    ESPUpdateConnection = nil,
+    OriginalWalkSpeed   = 16,
+    OriginalJumpPower   = 50,
+    OriginalZoomMax     = 128,
+    OriginalZoomMin     = 0.5,
+    LightingBackup      = {},
+    TextureBackup       = {},
+    WaterBackup          = {},
+    GrassBackup         = {},
+    UIVisible           = true,
+}
+
+--==========================================================================
+-- Utility
+--==========================================================================
+local function getHRP(player)
+    if not player then return nil end
+    local char = player.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHumanoid(player)
+    if not player then return nil end
+    local char = player.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getTargetPart(player)
+    local char = player and player.Character
+    if not char then return nil end
+    if Config.Target == "Head" then
+        return char:FindFirstChild("Head")
+    else
+        return char:FindFirstChild("HumanoidRootPart")
+            or char:FindFirstChild("Torso")
+            or char:FindFirstChild("UpperTorso")
+    end
+end
+
+local function isAlive(player)
+    local hum = getHumanoid(player)
+    return hum ~= nil and hum.Health > 0
+end
+
+local function isSameTeam(player)
+    if not Config.TeamCheck then return false end
+    return player.Team == LocalPlayer.Team
+end
+
+local function isBehindWall(targetPart)
+    if not Config.VisibilityCheck then return false end
+    local hrp = getHRP(LocalPlayer)
+    if not hrp then return false end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = { LocalPlayer.Character }
+    local result = Workspace:Raycast(hrp.Position, targetPart.Position - hrp.Position, params)
+    if result and result.Instance then
+        return not result.Instance:IsDescendantOf(targetPart.Parent)
+    end
+    return false
+end
+
+local function keyNameToKeyCode(name)
+    if not name or name == "None" or name == "" then return nil end
+    local upper = name:upper()
+    local special = {
+        ["SPACE"]      = Enum.KeyCode.Space,
+        ["ENTER"]      = Enum.KeyCode.Return,
+        ["TAB"]        = Enum.KeyCode.Tab,
+        ["ESC"]        = Enum.KeyCode.Escape,
+        ["RIGHTSHIFT"] = Enum.KeyCode.RightShift,
+        ["LEFTSHIFT"]  = Enum.KeyCode.LeftShift,
+        ["RIGHTCTRL"]  = Enum.KeyCode.RightControl,
+        ["LEFTCTRL"]   = Enum.KeyCode.LeftControl,
+        ["RIGHTALT"]   = Enum.KeyCode.RightAlt,
+        ["LEFTALT"]    = Enum.KeyCode.LeftAlt,
+        ["CAPSLOCK"]   = Enum.KeyCode.CapsLock,
+        ["BACKSPACE"]  = Enum.KeyCode.Backspace,
+        ["UP"]         = Enum.KeyCode.Up,
+        ["DOWN"]       = Enum.KeyCode.Down,
+        ["LEFT"]       = Enum.KeyCode.Left,
+        ["RIGHT"]      = Enum.KeyCode.Right,
+    }
+    if special[upper] then return special[upper] end
+    for _, kc in ipairs(Enum.KeyCode:GetEnumItems()) do
+        if kc.Name:upper() == upper then
+            return kc
+        end
+    end
+    return nil
+end
+
+local function notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "DAYI HUB",
+            Text = text or "",
+            Duration = duration or 3,
+        })
+    end)
+end
+
+--==========================================================================
+-- COLORS
+--==========================================================================
+local Colors = {
+    Bg       = Color3.fromRGB(11, 11, 18),
+    Sidebar   = Color3.fromRGB(8, 8, 14),
+    Card      = Color3.fromRGB(18, 18, 28),
+    CardHov   = Color3.fromRGB(22, 22, 34),
+    Panel     = Color3.fromRGB(14, 14, 22),
+    Purple    = Color3.fromRGB(160, 60, 255),
+    PurpleDk  = Color3.fromRGB(45, 10, 90),
+    PurpleBtn = Color3.fromRGB(130, 40, 220),
+    PurpleBg  = Color3.fromRGB(60, 15, 110),
+    ActiveTab = Color3.fromRGB(24, 10, 48),
+    Green     = Color3.fromRGB(34, 197, 94),
+    GreenDk   = Color3.fromRGB(20, 80, 44),
+    ToggleOff = Color3.fromRGB(55, 65, 81),
+    Pink      = Color3.fromRGB(236, 72, 153),
+    Cyan      = Color3.fromRGB(0, 220, 220),
+    Amber     = Color3.fromRGB(251, 191, 36),
+    White     = Color3.fromRGB(255, 255, 255),
+    Text      = Color3.fromRGB(241, 245, 249),
+    TextDim   = Color3.fromRGB(148, 163, 184),
+    TextFaint = Color3.fromRGB(100, 110, 130),
+    Red       = Color3.fromRGB(255, 60, 60),
+    Bar       = Color3.fromRGB(9, 9, 15),
+    BadgeBg   = Color3.fromRGB(20, 20, 32),
+    InputBg   = Color3.fromRGB(16, 16, 24),
+    Border    = Color3.fromRGB(255, 255, 255),
+}
+
+local AccentThemes = {
+    Purple = { main = Color3.fromRGB(160, 60, 255), dk = Color3.fromRGB(45, 10, 90),  btn = Color3.fromRGB(130, 40, 220), bg = Color3.fromRGB(60, 15, 110), tab = Color3.fromRGB(24, 10, 48) },
+    Blue   = { main = Color3.fromRGB(59, 130, 246),  dk = Color3.fromRGB(20, 40, 90),  btn = Color3.fromRGB(37, 99, 235),  bg = Color3.fromRGB(25, 50, 110), tab = Color3.fromRGB(15, 30, 60) },
+    Cyan   = { main = Color3.fromRGB(0, 220, 220),   dk = Color3.fromRGB(0, 70, 80),   btn = Color3.fromRGB(0, 180, 200), bg = Color3.fromRGB(0, 80, 100),  tab = Color3.fromRGB(0, 40, 55) },
+    Pink   = { main = Color3.fromRGB(236, 72, 153),  dk = Color3.fromRGB(90, 20, 55),  btn = Color3.fromRGB(200, 50, 130),bg = Color3.fromRGB(110, 25, 70), tab = Color3.fromRGB(50, 15, 35) },
+    Green  = { main = Color3.fromRGB(34, 197, 94),  dk = Color3.fromRGB(15, 70, 35),  btn = Color3.fromRGB(22, 163, 74), bg = Color3.fromRGB(20, 80, 45),  tab = Color3.fromRGB(10, 45, 25) },
+    Amber  = { main = Color3.fromRGB(251, 191, 36),  dk = Color3.fromRGB(90, 65, 10),  btn = Color3.fromRGB(217, 160, 30), bg = Color3.fromRGB(100, 70, 15), tab = Color3.fromRGB(55, 40, 10) },
+    Red    = { main = Color3.fromRGB(255, 60, 60),   dk = Color3.fromRGB(90, 15, 15),  btn = Color3.fromRGB(220, 40, 40), bg = Color3.fromRGB(110, 20, 20), tab = Color3.fromRGB(50, 12, 12) },
+}
+
+local function applyAccentTheme(name)
+    local t = AccentThemes[name] or AccentThemes.Purple
+    Colors.Purple    = t.main
+    Colors.PurpleDk  = t.dk
+    Colors.PurpleBtn = t.btn
+    Colors.PurpleBg  = t.bg
+    Colors.ActiveTab = t.tab
+end
+
+local function withAlpha(color, alpha)
+    return Color3.new(color.R, color.G, color.B)
+end
+
+--==========================================================================
+-- GUI BUILDING HELPERS
+--==========================================================================
+local function makeFrame(parent, props)
+    local f = Instance.new("Frame")
+    f.Parent = parent
+    for k, v in pairs(props) do
+        f[k] = v
+    end
+    return f
+end
+
+local function makeButton(parent, props)
+    local b = Instance.new("TextButton")
+    b.Parent = parent
+    b.AutoButtonColor = false
+    for k, v in pairs(props) do
+        b[k] = v
+    end
+    return b
+end
+
+local function makeTextLabel(parent, props)
+    local l = Instance.new("TextLabel")
+    l.Parent = parent
+    for k, v in pairs(props) do
+        l[k] = v
+    end
+    return l
+end
+
+local function makeUICorner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 8)
+    c.Parent = parent
+    return c
+end
+
+local function makeUIStroke(parent, color, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Color = color or Colors.Border
+    s.Thickness = thickness or 1
+    s.Transparency = transparency or 0.87
+    s.Parent = parent
+    return s
+end
+
+local function makeUIListLayout(parent, padding, direction)
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, padding or 6)
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    if direction then l.FillDirection = direction end
+    l.Parent = parent
+    return l
+end
+
+local function makeScrollFrame(parent, props)
+    local f = Instance.new("ScrollingFrame")
+    f.Parent = parent
+    f.ScrollBarThickness = 3
+    f.ScrollBarImageColor3 = Colors.Purple
+    f.CanvasSize = UDim2.new(0, 0, 0, 0)
+    f.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    for k, v in pairs(props) do
+        f[k] = v
+    end
+    return f
+end
+
+--==========================================================================
+-- TOGGLE WIDGET
+--==========================================================================
+local function createToggle(parent, defaultOn, onChange)
+    local on = defaultOn
+
+    local btn = makeButton(parent, {
+        Size = UDim2.new(0, 44, 0, 24),
+        BackgroundColor3 = on and Colors.Green or Colors.ToggleOff,
+        Text = "",
+    })
+    makeUICorner(btn, 12)
+
+    local knob = makeFrame(btn, {
+        Size = UDim2.new(0, 18, 0, 18),
+        Position = on and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+        BackgroundColor3 = Colors.White,
+    })
+    makeUICorner(knob, 9)
+
+    btn.MouseButton1Click:Connect(function()
+        on = not on
+        btn.BackgroundColor3 = on and Colors.Green or Colors.ToggleOff
+        TweenService:Create(knob, TweenInfo.new(0.15), {
+            Position = on and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+        }):Play()
+        if onChange then onChange(on) end
+    end)
+
+    return btn
+end
+
+--==========================================================================
+-- TOGGLE ROW (icon circle + label + toggle)
+--==========================================================================
+local function createToggleRow(parent, iconText, label, accentColor, defaultOn, onChange)
+    local row = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 56),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(row, 9)
+    makeUIStroke(row, Colors.Border, 1, 0.9)
+
+    local accentBar = makeFrame(row, {
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = accentColor,
+    })
+    makeUICorner(accentBar, 2)
+
+    local iconCircle = makeFrame(row, {
+        Size = UDim2.new(0, 38, 0, 38),
+        Position = UDim2.new(0, 14, 0.5, -19),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(iconCircle, 19)
+    makeUIStroke(iconCircle, accentColor, 1, 0.55)
+
+    local iconLabel = makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = iconText,
+        TextColor3 = Colors.Text,
+        TextSize = 17,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local nameLabel = makeTextLabel(row, {
+        Size = UDim2.new(1, -120, 1, 0),
+        Position = UDim2.new(0, 64, 0, 0),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local toggle = createToggle(row, defaultOn, onChange)
+    toggle.Position = UDim2.new(1, -58, 0.5, -12)
+
+    return row
+end
+
+--==========================================================================
+-- LOCKED ROW
+--==========================================================================
+local function createLockedRow(parent, iconText, label)
+    local row = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 56),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(row, 9)
+    makeUIStroke(row, Colors.Border, 1, 0.96)
+
+    local overlay = makeFrame(row, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Colors.Bg,
+        BackgroundTransparency = 0.45,
+    })
+    makeUICorner(overlay, 9)
+
+    local iconCircle = makeFrame(row, {
+        Size = UDim2.new(0, 38, 0, 38),
+        Position = UDim2.new(0, 14, 0.5, -19),
+        BackgroundColor3 = Color3.fromRGB(28, 28, 36),
+    })
+    makeUICorner(iconCircle, 19)
+    makeUIStroke(iconCircle, Colors.Border, 1, 0.88)
+
+    local iconLabel = makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "🔒",
+        TextColor3 = Colors.Text,
+        TextSize = 16,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local nameLabel = makeTextLabel(row, {
+        Size = UDim2.new(1, -120, 1, 0),
+        Position = UDim2.new(0, 64, 0, 0),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Colors.TextFaint,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local badge = makeFrame(row, {
+        Size = UDim2.new(0, 60, 0, 22),
+        Position = UDim2.new(1, -74, 0.5, -11),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+    })
+    makeUICorner(badge, 11)
+    makeUIStroke(badge, Colors.Border, 1, 0.88)
+
+    makeTextLabel(badge, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "🔒 Soon",
+        TextColor3 = Colors.TextFaint,
+        TextSize = 10,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    return row
+end
+
+--==========================================================================
+-- SLIDER ROW
+--==========================================================================
+local function createSliderRow(parent, iconText, label, min, max, defaultVal, accentColor, onChange)
+    local row = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 74),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(row, 9)
+    makeUIStroke(row, Colors.Border, 1, 0.9)
+
+    local accentBar = makeFrame(row, {
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = accentColor,
+    })
+    makeUICorner(accentBar, 2)
+
+    local iconCircle = makeFrame(row, {
+        Size = UDim2.new(0, 38, 0, 38),
+        Position = UDim2.new(0, 14, 0, 10),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(iconCircle, 19)
+    makeUIStroke(iconCircle, accentColor, 1, 0.55)
+
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = iconText,
+        TextColor3 = Colors.Text,
+        TextSize = 17,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local valLabel = makeTextLabel(row, {
+        Size = UDim2.new(1, -30, 0, 20),
+        Position = UDim2.new(0, 64, 0, 10),
+        BackgroundTransparency = 1,
+        Text = label .. ": " .. tostring(defaultVal),
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local track = makeFrame(row, {
+        Size = UDim2.new(1, -120, 0, 6),
+        Position = UDim2.new(0, 64, 0, 48),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 50),
+    })
+    makeUICorner(track, 3)
+
+    local fill = makeFrame(track, {
+        Size = UDim2.new((defaultVal - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = accentColor,
+    })
+    makeUICorner(fill, 3)
+
+    local knob = makeFrame(track, {
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new((defaultVal - min) / (max - min), -7, 0.5, -7),
+        BackgroundColor3 = Colors.White,
+    })
+    makeUICorner(knob, 7)
+    makeUIStroke(knob, accentColor, 2, 0)
+
+    local minLabel = makeTextLabel(row, {
+        Size = UDim2.new(0, 20, 0, 14),
+        Position = UDim2.new(0, 50, 0, 48),
+        BackgroundTransparency = 1,
+        Text = tostring(min),
+        TextColor3 = Colors.TextDim,
+        TextSize = 10,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local maxLabel = makeTextLabel(row, {
+        Size = UDim2.new(0, 30, 0, 14),
+        Position = UDim2.new(1, -30, 0, 48),
+        BackgroundTransparency = 1,
+        Text = tostring(max),
+        TextColor3 = Colors.TextDim,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local dragging = false
+    local function updateValue(inputX)
+        local rel = (inputX - track.AbsolutePosition.X) / track.AbsoluteSize.X
+        rel = math.clamp(rel, 0, 1)
+        local val = math.floor(rel * (max - min) + min)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        knob.Position = UDim2.new(rel, -7, 0.5, -7)
+        valLabel.Text = label .. ": " .. tostring(val)
+        if onChange then onChange(val) end
+    end
+
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            updateValue(input.Position.X)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateValue(input.Position.X)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    return row
+end
+
+--==========================================================================
+-- DROPDOWN ROW (button that cycles or opens menu)
+--==========================================================================
+local function createDropdownRow(parent, iconText, label, options, defaultVal, accentColor, onSelect)
+    local current = defaultVal
+    local currentIndex = 1
+    for i, opt in ipairs(options) do
+        if opt == defaultVal then currentIndex = i break end
+    end
+
+    local row = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 56),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(row, 9)
+    makeUIStroke(row, Colors.Border, 1, 0.9)
+
+    local accentBar = makeFrame(row, {
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = accentColor,
+    })
+    makeUICorner(accentBar, 2)
+
+    local iconCircle = makeFrame(row, {
+        Size = UDim2.new(0, 38, 0, 38),
+        Position = UDim2.new(0, 14, 0.5, -19),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(iconCircle, 19)
+    makeUIStroke(iconCircle, accentColor, 1, 0.55)
+
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = iconText,
+        TextColor3 = Colors.Text,
+        TextSize = 17,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local nameLabel = makeTextLabel(row, {
+        Size = UDim2.new(1, -120, 1, 0),
+        Position = UDim2.new(0, 64, 0, 0),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local valueBtn = makeButton(row, {
+        Size = UDim2.new(0, 90, 0, 30),
+        Position = UDim2.new(1, -104, 0.5, -15),
+        BackgroundColor3 = accentColor,
+        Text = defaultVal,
+        TextColor3 = Colors.Text,
+        TextSize = 11,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(valueBtn, 8)
+
+    valueBtn.MouseButton1Click:Connect(function()
+        currentIndex = currentIndex % #options + 1
+        current = options[currentIndex]
+        valueBtn.Text = current
+        if onSelect then onSelect(current) end
+    end)
+
+    return row
+end
+
+--==========================================================================
+-- BIND KEY ROW
+--==========================================================================
+local function createBindKeyRow(parent, iconText, label, accentColor, onKey, initialKey)
+    local listening = false
+    local currentKey = initialKey or "None"
+
+    local row = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 56),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(row, 9)
+    makeUIStroke(row, Colors.Border, 1, 0.9)
+
+    local accentBar = makeFrame(row, {
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = accentColor,
+    })
+    makeUICorner(accentBar, 2)
+
+    local iconCircle = makeFrame(row, {
+        Size = UDim2.new(0, 38, 0, 38),
+        Position = UDim2.new(0, 14, 0.5, -19),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(iconCircle, 19)
+    makeUIStroke(iconCircle, accentColor, 1, 0.55)
+
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = iconText,
+        TextColor3 = Colors.Text,
+        TextSize = 17,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local nameLabel = makeTextLabel(row, {
+        Size = UDim2.new(1, -120, 1, 0),
+        Position = UDim2.new(0, 64, 0, 0),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local keyBtn = makeButton(row, {
+        Size = UDim2.new(0, 90, 0, 30),
+        Position = UDim2.new(1, -104, 0.5, -15),
+        BackgroundColor3 = accentColor,
+        Text = currentKey,
+        TextColor3 = Colors.Text,
+        TextSize = 11,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(keyBtn, 8)
+
+    keyBtn.MouseButton1Click:Connect(function()
+        if listening then
+            listening = false
+            keyBtn.Text = currentKey
+            keyBtn.BackgroundColor3 = accentColor
+            return
+        end
+        listening = true
+        keyBtn.Text = "Press a key..."
+        keyBtn.BackgroundColor3 = Colors.Red
+
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input)
+            if listening then
+                listening = false
+                local keyName = tostring(input.KeyCode.Name)
+                currentKey = keyName
+                keyBtn.Text = keyName
+                keyBtn.BackgroundColor3 = accentColor
+                if onKey then onKey(keyName) end
+                conn:Disconnect()
+            end
+        end)
+    end)
+
+    return row
+end
+
+--==========================================================================
+-- FEATURE CARD (for Graphics page grid)
+--==========================================================================
+local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn, onChange)
+    local card = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 82),
+        BackgroundColor3 = locked and Colors.Panel or Colors.Card,
+    })
+    makeUICorner(card, 9)
+    makeUIStroke(card, Colors.Border, 1, 0.9)
+
+    if locked then
+        local overlay = makeFrame(card, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = Colors.Bg,
+            BackgroundTransparency = 0.45,
+        })
+        makeUICorner(overlay, 9)
+    end
+
+    local iconCircle = makeFrame(card, {
+        Size = UDim2.new(0, 46, 0, 46),
+        Position = UDim2.new(0, 10, 0.5, -23),
+        BackgroundColor3 = locked and Color3.fromRGB(28, 28, 36) or Colors.PurpleDk,
+    })
+    makeUICorner(iconCircle, 23)
+    makeUIStroke(iconCircle, locked and Colors.Border or Colors.Purple, 1, 0)
+
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = locked and "🔒" or iconText,
+        TextColor3 = Colors.Text,
+        TextSize = locked and 18 or 20,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local nameText = makeTextLabel(card, {
+        Size = UDim2.new(1, -130, 0, 18),
+        Position = UDim2.new(0, 66, 0, 20),
+        BackgroundTransparency = 1,
+        Text = name,
+        TextColor3 = locked and Colors.TextFaint or Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local descText = makeTextLabel(card, {
+        Size = UDim2.new(1, -130, 0, 14),
+        Position = UDim2.new(0, 66, 0, 42),
+        BackgroundTransparency = 1,
+        Text = locked and "Premium required" or desc,
+        TextColor3 = locked and Colors.TextFaint or Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Font = Enum.Font.SourceSans,
+    })
+
+    if locked then
+        local badge = makeFrame(card, {
+            Size = UDim2.new(0, 60, 0, 22),
+            Position = UDim2.new(1, -72, 0.5, -11),
+            BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+        })
+        makeUICorner(badge, 11)
+        makeUIStroke(badge, Colors.Border, 1, 0.88)
+        makeTextLabel(badge, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "🔒 Soon",
+            TextColor3 = Colors.TextFaint,
+            TextSize = 10,
+            Font = Enum.Font.SourceSansBold,
+        })
+    else
+        local toggle = createToggle(card, defaultOn, onChange)
+        toggle.Position = UDim2.new(1, -58, 0.5, -12)
+    end
+end
+
+--==========================================================================
+-- PAGE HEADER
+--==========================================================================
+local function createPageHeader(parent, iconText, title, subtitle, accentColor)
+    local header = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 50),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+    })
+
+    makeTextLabel(header, {
+        Size = UDim2.new(0, 26, 0, 26),
+        Position = UDim2.new(0, 18, 0, 14),
+        BackgroundTransparency = 1,
+        Text = iconText,
+        TextColor3 = accentColor,
+        TextSize = 20,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(header, {
+        Size = UDim2.new(1, -50, 0, 26),
+        Position = UDim2.new(0, 48, 0, 14),
+        BackgroundTransparency = 1,
+        Text = title,
+        TextColor3 = Colors.Text,
+        TextSize = 20,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(header, {
+        Size = UDim2.new(1, -36, 0, 14),
+        Position = UDim2.new(0, 18, 0, 38),
+        BackgroundTransparency = 1,
+        Text = subtitle,
+        TextColor3 = Colors.TextDim,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local divider = makeFrame(parent, {
+        Size = UDim2.new(1, -20, 0, 1),
+        Position = UDim2.new(0, 10, 0, 50),
+        BackgroundColor3 = Colors.Border,
+        BackgroundTransparency = 0.87,
+    })
+
+    return header
+end
+
+--==========================================================================
+-- MAIN GUI
+--==========================================================================
+local ScreenGui
+local MainFrame
+local MainFrameScale
+local ContentArea
+local PageFrames = {}
+local SidebarButtons = {}
+local activeTab = nil
+
+local buildPages  -- forward declaration so the Reload UI closure can call it
+local createColorPickerRow  -- forward declaration so buildPremiumPage can call it
+
+local function destroyOldGui()
+    local old = CoreGui:FindFirstChild("DAYI_HUB")
+    if old then old:Destroy() end
+    local old2 = LocalPlayer.PlayerGui:FindFirstChild("DAYI_HUB")
+    if old2 then old2:Destroy() end
+end
+
+local function buildGUI()
+    destroyOldGui()
+
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "DAYI_HUB"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.IgnoreGuiInset = true
+    pcall(function() ScreenGui.Parent = CoreGui end)
+    if ScreenGui.Parent == nil then
+        ScreenGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    -- Main container
+    MainFrame = makeFrame(ScreenGui, {
+        Size = UDim2.new(0, 1040, 0, 640),
+        Position = UDim2.new(0.5, -520, 0.5, -320),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+        Visible = true,
+    })
+    makeUICorner(MainFrame, 12)
+    makeUIStroke(MainFrame, Colors.Purple, 1.5, 0)
+
+    MainFrameScale = Instance.new("UIScale")
+    MainFrameScale.Scale = 1
+    MainFrameScale.Parent = MainFrame
+
+    --==== TITLE BAR ====
+    local titleBar = makeFrame(MainFrame, {
+        Size = UDim2.new(1, 0, 0, 54),
+        BackgroundColor3 = Colors.Sidebar,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(titleBar, 12)
+
+    -- Clip bottom corners
+    local titleClip = makeFrame(titleBar, {
+        Size = UDim2.new(1, 0, 0, 12),
+        Position = UDim2.new(0, 0, 1, -12),
+        BackgroundColor3 = Colors.Sidebar,
+        BorderSizePixel = 0,
+    })
+
+    local logoCircle = makeFrame(titleBar, {
+        Size = UDim2.new(0, 34, 0, 34),
+        Position = UDim2.new(0, 14, 0.5, -17),
+        BackgroundColor3 = Color3.fromRGB(100, 40, 200),
+    })
+    makeUICorner(logoCircle, 17)
+    makeTextLabel(logoCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "🔥",
+        TextColor3 = Colors.White,
+        TextSize = 18,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local titleText = makeTextLabel(titleBar, {
+        Size = UDim2.new(0, 300, 0, 20),
+        Position = UDim2.new(0, 56, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "DAYI SCRIPT HUB",
+        TextColor3 = Colors.Text,
+        TextSize = 17,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local subtitleText = makeTextLabel(titleBar, {
+        Size = UDim2.new(0, 300, 0, 14),
+        Position = UDim2.new(0, 56, 0, 30),
+        BackgroundTransparency = 1,
+        Text = "Premium Utility Hub",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Version badge
+    local versionBadge = makeFrame(titleBar, {
+        Size = UDim2.new(0, 110, 0, 40),
+        Position = UDim2.new(1, -300, 0.5, -20),
+        BackgroundColor3 = Colors.BadgeBg,
+    })
+    makeUICorner(versionBadge, 8)
+    makeUIStroke(versionBadge, Colors.Border, 1, 0.82)
+    makeTextLabel(versionBadge, {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, 4),
+        BackgroundTransparency = 1,
+        Text = "v1.1",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(versionBadge, {
+        Size = UDim2.new(1, 0, 0, 14),
+        Position = UDim2.new(0, 0, 0, 22),
+        BackgroundTransparency = 1,
+        Text = "v1.1",
+        TextColor3 = Colors.TextDim,
+        TextSize = 10,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Connection badge
+    local connBadge = makeFrame(titleBar, {
+        Size = UDim2.new(0, 128, 0, 40),
+        Position = UDim2.new(1, -180, 0.5, -20),
+        BackgroundColor3 = Colors.BadgeBg,
+    })
+    makeUICorner(connBadge, 8)
+    makeUIStroke(connBadge, Colors.Border, 1, 0.82)
+
+    local connDot = makeFrame(connBadge, {
+        Size = UDim2.new(0, 8, 0, 8),
+        Position = UDim2.new(0, 12, 0.5, -4),
+        BackgroundColor3 = Colors.Green,
+    })
+    makeUICorner(connDot, 4)
+
+    makeTextLabel(connBadge, {
+        Size = UDim2.new(1, -20, 0, 16),
+        Position = UDim2.new(0, 26, 0, 6),
+        BackgroundTransparency = 1,
+        Text = "Connected",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(connBadge, {
+        Size = UDim2.new(1, -20, 0, 14),
+        Position = UDim2.new(0, 26, 0, 22),
+        BackgroundTransparency = 1,
+        Text = "Server Online",
+        TextColor3 = Colors.Green,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Window controls
+    local winCtrlMin = makeButton(titleBar, {
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(1, -52, 0.5, -12),
+        BackgroundColor3 = Color3.fromRGB(22, 22, 34),
+        Text = "—",
+        TextColor3 = Colors.TextDim,
+        TextSize = 13,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(winCtrlMin, 4)
+
+    local winCtrlClose = makeButton(titleBar, {
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(1, -22, 0.5, -12),
+        BackgroundColor3 = Color3.fromRGB(22, 22, 34),
+        Text = "✕",
+        TextColor3 = Colors.Red,
+        TextSize = 13,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(winCtrlClose, 4)
+
+    local function animateClose()
+        State.UIVisible = false
+        local tween = TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85})
+        tween:Play()
+        task.delay(0.2, function()
+            MainFrame.Visible = false
+            MainFrameScale.Scale = 1
+        end)
+    end
+
+    winCtrlClose.MouseButton1Click:Connect(function()
+        animateClose()
+        notify("DAYI HUB", "UI hidden. Press RightShift to toggle.", 3)
+    end)
+    winCtrlMin.MouseButton1Click:Connect(animateClose)
+
+    --==== DRAGGING ====
+    titleBar.Active = true
+    local dragging = false
+    local dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    --==== SIDEBAR ====
+    local sidebar = makeFrame(MainFrame, {
+        Size = UDim2.new(0, 180, 1, -54),
+        Position = UDim2.new(0, 0, 0, 54),
+        BackgroundColor3 = Colors.Sidebar,
+        BorderSizePixel = 0,
+    })
+
+    local sidebarStroke = makeUIStroke(sidebar, Colors.Border, 1, 0.87)
+    sidebarStroke.LineJoinMode = Enum.LineJoinMode.Round
+
+    local sidebarLayout = makeUIListLayout(sidebar, 2)
+
+    local tabDefs = {
+        { name = "Graphics", icon = "🖥️" },
+        { name = "Visual",   icon = "👁️" },
+        { name = "Player",   icon = "👤" },
+        { name = "Premium",  icon = "👑", badge = "NEW" },
+        { name = "Settings",  icon = "⚙️" },
+        { name = "Changelog", icon = "📝" },
+        { name = "Credits",   icon = "🩷" },
+    }
+
+    activeTab = activeTab or "Graphics"
+
+    for i, td in ipairs(tabDefs) do
+        local btn = makeButton(sidebar, {
+            Size = UDim2.new(1, 0, 0, 52),
+            BackgroundColor3 = (td.name == activeTab) and Colors.ActiveTab or Colors.Sidebar,
+            Text = "",
+            LayoutOrder = i,
+        })
+
+        local accentIndicator = makeFrame(btn, {
+            Size = UDim2.new(0, 3, 1, 0),
+            BackgroundColor3 = Colors.Purple,
+            Visible = (td.name == activeTab),
+        })
+        makeUICorner(accentIndicator, 2)
+
+        local iconLabel = makeTextLabel(btn, {
+            Size = UDim2.new(0, 28, 1, 0),
+            Position = UDim2.new(0, 16, 0, 0),
+            BackgroundTransparency = 1,
+            Text = td.icon,
+            TextColor3 = (td.name == activeTab) and Colors.Purple or Colors.TextDim,
+            TextSize = 17,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        local nameLabel = makeTextLabel(btn, {
+            Size = UDim2.new(1, -50, 1, 0),
+            Position = UDim2.new(0, 50, 0, 0),
+            BackgroundTransparency = 1,
+            Text = td.name,
+            TextColor3 = (td.name == activeTab) and Colors.Text or Colors.TextDim,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        if td.badge then
+            local badge = makeFrame(btn, {
+                Size = UDim2.new(0, 36, 0, 18),
+                Position = UDim2.new(1, -42, 0.5, -9),
+                BackgroundColor3 = Colors.PurpleDk,
+            })
+            makeUICorner(badge, 9)
+            makeTextLabel(badge, {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = td.badge,
+                TextColor3 = Colors.Purple,
+                TextSize = 9,
+                Font = Enum.Font.SourceSansBold,
+            })
+        end
+
+        SidebarButtons[td.name] = {
+            btn = btn,
+            accent = accentIndicator,
+            icon = iconLabel,
+            name = nameLabel,
+        }
+
+        btn.MouseButton1Click:Connect(function()
+            if activeTab == td.name then return end
+            local oldTab = activeTab
+            -- Deselect old
+            for name, widgets in pairs(SidebarButtons) do
+                widgets.btn.BackgroundColor3 = Colors.Sidebar
+                widgets.accent.Visible = false
+                widgets.icon.TextColor3 = Colors.TextDim
+                widgets.name.TextColor3 = Colors.TextDim
+            end
+            -- Select new
+            activeTab = td.name
+            btn.BackgroundColor3 = Colors.ActiveTab
+            accentIndicator.Visible = true
+            iconLabel.TextColor3 = Colors.Purple
+            nameLabel.TextColor3 = Colors.Text
+
+            -- Page transition animation: hide old, slide new in
+            local oldPage = PageFrames[oldTab]
+            local newPage = PageFrames[td.name]
+            if oldPage then
+                oldPage.Visible = false
+            end
+            if newPage then
+                newPage.Visible = true
+                newPage.Position = UDim2.new(0, 16, 0, 0)
+                TweenService:Create(newPage, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(0, 0, 0, 0),
+                }):Play()
+            end
+        end)
+    end
+
+    --==== CONTENT AREA ====
+    ContentArea = makeFrame(MainFrame, {
+        Size = UDim2.new(1, -410, 1, -104),
+        Position = UDim2.new(0, 180, 0, 54),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+    })
+
+    --==== RIGHT PANEL ====
+    local rightPanel = makeFrame(MainFrame, {
+        Size = UDim2.new(0, 230, 1, -104),
+        Position = UDim2.new(1, -230, 0, 54),
+        BackgroundColor3 = Colors.Sidebar,
+        BorderSizePixel = 0,
+    })
+    makeUIStroke(rightPanel, Colors.Border, 1, 0.87)
+
+    local rightLayout = makeUIListLayout(rightPanel, 10)
+    rightLayout.Padding = UDim.new(0, 10)
+
+    -- Premium Status card
+    local premCard = makeFrame(rightPanel, {
+        Size = UDim2.new(1, -28, 0, 142),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(premCard, 10)
+    makeUIStroke(premCard, Colors.Border, 1, 0.88)
+    premCard.Position = UDim2.new(0, 14, 0, 14)
+
+    makeTextLabel(premCard, {
+        Size = UDim2.new(1, -20, 0, 16),
+        Position = UDim2.new(0, 10, 0, 10),
+        BackgroundTransparency = 1,
+        Text = "Premium Status",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local premIcon = makeFrame(premCard, {
+        Size = UDim2.new(0, 62, 0, 62),
+        Position = UDim2.new(0.5, -31, 0, 30),
+        BackgroundColor3 = Colors.PurpleBg,
+    })
+    makeUICorner(premIcon, 31)
+    makeUIStroke(premIcon, Colors.Purple, 1.5, 0)
+    makeTextLabel(premIcon, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "👑",
+        TextColor3 = Colors.Text,
+        TextSize = 28,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local premLabel = makeTextLabel(premCard, {
+        Size = UDim2.new(0, 100, 0, 16),
+        Position = UDim2.new(0.5, -50, 0, 96),
+        BackgroundTransparency = 1,
+        Text = "Premium",
+        TextColor3 = Colors.Purple,
+        TextSize = 13,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local premBadge = makeFrame(premCard, {
+        Size = UDim2.new(0, 44, 0, 18),
+        Position = UDim2.new(0.5, 10, 0, 98),
+        BackgroundColor3 = Colors.GreenDk,
+    })
+    makeUICorner(premBadge, 9)
+    makeTextLabel(premBadge, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "Active",
+        TextColor3 = Colors.Green,
+        TextSize = 10,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(premCard, {
+        Size = UDim2.new(1, 0, 0, 14),
+        Position = UDim2.new(0, 0, 0, 120),
+        BackgroundTransparency = 1,
+        Text = "Expire: Never",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- System Info card
+    local sysCard = makeFrame(rightPanel, {
+        Size = UDim2.new(1, -28, 0, 118),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(sysCard, 10)
+    makeUIStroke(sysCard, Colors.Border, 1, 0.88)
+    sysCard.Position = UDim2.new(0, 14, 0, 168)
+
+    makeTextLabel(sysCard, {
+        Size = UDim2.new(1, -20, 0, 16),
+        Position = UDim2.new(0, 10, 0, 10),
+        BackgroundTransparency = 1,
+        Text = "System Information",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local sysInfo = {
+        { key = "FPS",     val = "-- FPS",   color = Colors.Green,  live = "fps" },
+        { key = "Ping",    val = "-- ms",    color = Colors.Green,  live = "ping" },
+        { key = "Players", val = "-- / --", color = Colors.Text,   live = "players" },
+        { key = "Place",   val = "--",      color = Colors.Purple, live = "place" },
+    }
+
+    local sysValLabels = {}
+
+    for i, info in ipairs(sysInfo) do
+        local y = 32 + (i - 1) * 18
+        makeTextLabel(sysCard, {
+            Size = UDim2.new(0, 80, 0, 18),
+            Position = UDim2.new(0, 10, 0, y),
+            BackgroundTransparency = 1,
+            Text = info.key,
+            TextColor3 = Colors.TextDim,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+        local valLbl = makeTextLabel(sysCard, {
+            Size = UDim2.new(1, -100, 0, 18),
+            Position = UDim2.new(0, 90, 0, y),
+            BackgroundTransparency = 1,
+            Text = info.val,
+            TextColor3 = info.color,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Font = Enum.Font.SourceSansBold,
+        })
+        sysValLabels[info.live] = valLbl
+    end
+
+    task.spawn(function()
+        local fpsFrames = 0
+        local fpsAccum = 0
+        while true do
+            local dt = RunService.RenderStepped:Wait()
+            if dt > 0 then
+                fpsAccum = fpsAccum + (1 / dt)
+                fpsFrames = fpsFrames + 1
+            end
+            if fpsFrames >= 30 then
+                local avgFps = math.floor(fpsAccum / fpsFrames)
+                sysValLabels.fps.Text = avgFps .. " FPS"
+                if avgFps >= 50 then
+                    sysValLabels.fps.TextColor3 = Colors.Green
+                elseif avgFps >= 30 then
+                    sysValLabels.fps.TextColor3 = Colors.Amber
+                else
+                    sysValLabels.fps.TextColor3 = Colors.Red
+                end
+                fpsAccum = 0
+                fpsFrames = 0
+            end
+            local pingOk, pingVal = pcall(function() return LocalPlayer:GetNetworkPing() end)
+            if pingOk and type(pingVal) == "number" then
+                local pingMs = math.floor(pingVal * 1000)
+                sysValLabels.ping.Text = pingMs .. " ms"
+                if pingMs < 100 then
+                    sysValLabels.ping.TextColor3 = Colors.Green
+                elseif pingMs < 250 then
+                    sysValLabels.ping.TextColor3 = Colors.Amber
+                else
+                    sysValLabels.ping.TextColor3 = Colors.Red
+                end
+            end
+            local maxPlayers = Players.MaxPlayers or 0
+            local curPlayers = #Players:GetPlayers()
+            sysValLabels.players.Text = curPlayers .. " / " .. maxPlayers
+            local placeOk, placeName = pcall(function()
+                return game.MarketplaceService and game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Roblox"
+            end)
+            if placeOk and type(placeName) == "string" then
+                sysValLabels.place.Text = placeName
+            else
+                sysValLabels.place.Text = "Roblox"
+            end
+        end
+    end)
+
+    -- Quick Actions card
+    local qaCard = makeFrame(rightPanel, {
+        Size = UDim2.new(1, -28, 0, 132),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(qaCard, 10)
+    makeUIStroke(qaCard, Colors.Border, 1, 0.88)
+    qaCard.Position = UDim2.new(0, 14, 0, 296)
+
+    makeTextLabel(qaCard, {
+        Size = UDim2.new(1, -20, 0, 16),
+        Position = UDim2.new(0, 10, 0, 10),
+        BackgroundTransparency = 1,
+        Text = "Quick Actions",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local qaItems = {
+        { text = "↺  Reload UI",    filled = true,  action = function()
+            destroyOldGui()
+            PageFrames = {}
+            SidebarButtons = {}
+            buildGUI()
+            buildPages()
+            if PageFrames["Graphics"] then
+                PageFrames["Graphics"].Visible = true
+            end
+        end },
+        { text = "💾  Save Config",  filled = false, action = function() notify("DAYI HUB", "Config saved (local).", 2) end },
+        { text = "📁  Open Folder",  filled = false, action = function() notify("DAYI HUB", "Folder opening...", 2) end },
+    }
+
+    for i, qa in ipairs(qaItems) do
+        local qaBtn = makeButton(qaCard, {
+            Size = UDim2.new(1, -20, 0, 28),
+            Position = UDim2.new(0, 10, 0, 32 + (i - 1) * 34),
+            BackgroundColor3 = qa.filled and Colors.PurpleBtn or Color3.fromRGB(22, 22, 34),
+            Text = qa.text,
+            TextColor3 = Colors.Text,
+            TextSize = 12,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeUICorner(qaBtn, 6)
+        if not qa.filled then makeUIStroke(qaBtn, Colors.Border, 1, 0.85) end
+
+        qaBtn.MouseButton1Click:Connect(qa.action)
+    end
+
+    --==== STATUS BAR ====
+    local statusBar = makeFrame(MainFrame, {
+        Size = UDim2.new(1, 0, 0, 50),
+        Position = UDim2.new(0, 0, 1, -50),
+        BackgroundColor3 = Colors.Bar,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(statusBar, 12)
+    local statusClip = makeFrame(statusBar, {
+        Size = UDim2.new(1, 0, 0, 12),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Colors.Bar,
+        BorderSizePixel = 0,
+    })
+
+    local statusItems = {
+        { icon = "💬", label = "Discord",    val = "discord.gg/QFwWBWM2j", color = Colors.Purple, live = false },
+        { icon = "⌨️", label = "Build",       val = "v10.0",              color = Colors.Purple, live = false },
+        { icon = "📊", label = "FPS",          val = "-- FPS",             color = Colors.Green,  live = "fps" },
+        { icon = "📡", label = "Ping",         val = "-- ms",              color = Colors.Green,  live = "ping" },
+    }
+
+    local statusValLabels = {}
+
+    for i, item in ipairs(statusItems) do
+        local x = (i - 1) * 140
+        makeTextLabel(statusBar, {
+            Size = UDim2.new(0, 20, 0, 20),
+            Position = UDim2.new(0, x + 12, 0.5, -10),
+            BackgroundTransparency = 1,
+            Text = item.icon,
+            TextColor3 = Colors.TextDim,
+            TextSize = 16,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeTextLabel(statusBar, {
+            Size = UDim2.new(0, 120, 0, 16),
+            Position = UDim2.new(0, x + 34, 0, 8),
+            BackgroundTransparency = 1,
+            Text = item.label,
+            TextColor3 = Colors.Text,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+        local valLbl = makeTextLabel(statusBar, {
+            Size = UDim2.new(0, 120, 0, 14),
+            Position = UDim2.new(0, x + 34, 0, 24),
+            BackgroundTransparency = 1,
+            Text = item.val,
+            TextColor3 = item.color,
+            TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+        if item.live then
+            statusValLabels[item.live] = valLbl
+        end
+    end
+
+    -- Clock
+    local clockLabel = makeTextLabel(statusBar, {
+        Size = UDim2.new(0, 120, 0, 16),
+        Position = UDim2.new(1, -130, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "00:00:00",
+        TextColor3 = Colors.Text,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Font = Enum.Font.SourceSansBold,
+    })
+    local dateLabel = makeTextLabel(statusBar, {
+        Size = UDim2.new(0, 120, 0, 14),
+        Position = UDim2.new(1, -130, 0, 24),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Colors.TextDim,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Font = Enum.Font.SourceSans,
+    })
+
+    task.spawn(function()
+        local fpsFrames = 0
+        local fpsAccum = 0
+        while true do
+            local dt = RunService.RenderStepped:Wait()
+            if dt > 0 then
+                fpsAccum = fpsAccum + (1 / dt)
+                fpsFrames = fpsFrames + 1
+            end
+            if fpsFrames >= 30 then
+                local avgFps = math.floor(fpsAccum / fpsFrames)
+                if statusValLabels.fps then
+                    statusValLabels.fps.Text = avgFps .. " FPS"
+                    if avgFps >= 50 then
+                        statusValLabels.fps.TextColor3 = Colors.Green
+                    elseif avgFps >= 30 then
+                        statusValLabels.fps.TextColor3 = Colors.Amber
+                    else
+                        statusValLabels.fps.TextColor3 = Colors.Red
+                    end
+                end
+                fpsAccum = 0
+                fpsFrames = 0
+            end
+            local pingOk, pingVal = pcall(function() return LocalPlayer:GetNetworkPing() end)
+            if pingOk and type(pingVal) == "number" and statusValLabels.ping then
+                local pingMs = math.floor(pingVal * 1000)
+                statusValLabels.ping.Text = pingMs .. " ms"
+                if pingMs < 100 then
+                    statusValLabels.ping.TextColor3 = Colors.Green
+                elseif pingMs < 250 then
+                    statusValLabels.ping.TextColor3 = Colors.Amber
+                else
+                    statusValLabels.ping.TextColor3 = Colors.Red
+                end
+            end
+            local nowT = os.date("*t")
+            clockLabel.Text = string.format("%02d:%02d:%02d", nowT.hour, nowT.min, nowT.sec)
+            local months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"}
+            dateLabel.Text = months[nowT.month] .. " " .. nowT.day .. ", " .. nowT.year
+        end
+    end)
+
+end
+
+--==========================================================================
+-- PAGE BUILDERS
+--==========================================================================
+local function createPageContainer(name)
+    local page = makeFrame(ContentArea, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+        Visible = false,
+    })
+    PageFrames[name] = page
+    return page
+end
+
+local function createScrollContent(page, topOffset)
+    local scroll = makeScrollFrame(page, {
+        Size = UDim2.new(1, 0, 1, -topOffset),
+        Position = UDim2.new(0, 0, 0, topOffset),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+    })
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.Parent = scroll
+    return scroll
+end
+
+local function buildGraphicsPage()
+    local page = createPageContainer("Graphics")
+    createPageHeader(page, "🖥️", "Graphics", "Enhance your game graphics and performance.", Colors.Purple)
+
+    local scroll = createScrollContent(page, 52)
+    local grid = Instance.new("UIGridLayout")
+    grid.CellSize = UDim2.new(0.5, -3, 0, 82)
+    grid.CellPadding = UDim2.new(0, 6, 0, 6)
+    grid.SortOrder = Enum.SortOrder.LayoutOrder
+    grid.Parent = scroll
+
+    local features = {
+        { name = "Unlimited Zoom",    desc = "Remove Roblox zoom limit.",   icon = "🔍", locked = false, default = false, key = "UnlimitedZoom" },
+        { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = false, key = "FPSBooster" },
+        { name = "VFX Remover",        desc = "Remove all visual effects.",  icon = "📦", locked = false, default = false, key = "VFXRemover" },
+        -- { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = true,  default = false, key = "TextureOptimizer" },
+        { name = "Shadow Remover",     desc = "Remove all shadows.",          icon = "☀️", locked = true,  default = false, key = "ShadowRemover" },
+        { name = "Light Optimizer",     desc = "Optimize game lighting.",      icon = "💡", locked = true,  default = false, key = "LightOptimizer" },
+        { name = "Water Optimizer",     desc = "Improve water performance.",   icon = "💧", locked = true,  default = false, key = "WaterOptimizer" },
+        { name = "Grass Optimizer",     desc = "Optimize grass quality.",      icon = "🌿", locked = true,  default = false, key = "GrassOptimizer" },
+    }
+
+    for i, f in ipairs(features) do
+        createFeatureCard(scroll, f.icon, f.name, f.desc, f.locked, f.default, function(on)
+            DayiHub.SetToggle(f.key, on)
+        end)
+    end
+end
+
+local function buildVisualPage()
+    local page = createPageContainer("Visual")
+    createPageHeader(page, "👁️", "Visual", "ESP, aimbot and visual enhancements.", Colors.Pink)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 6)
+
+    createToggleRow(scroll, "🔴", "Wallhack ESP", Colors.Pink, false, function(on)
+        DayiHub.SetToggle("WallhackESP", on)
+    end)
+    createToggleRow(scroll, "💀", "Skeleton ESP", Colors.Pink, false, function(on)
+        DayiHub.SetToggle("SkeletonESP", on)
+    end)
+    createLockedRow(scroll, "🟦", "Box ESP")
+    createLockedRow(scroll, "📛", "Name ESP")
+    createDropdownRow(scroll, "🎯", "Aimbot", {"ON", "OFF"}, "OFF", Colors.Cyan, function(val)
+        DayiHub.SetToggle("Aimbot", val == "ON")
+    end)
+    createDropdownRow(scroll, "📱", "Mobile Aimbot", {"ON", "OFF"}, "OFF", Colors.Cyan, function(val)
+        DayiHub.SetToggle("MobileAimbot", val == "ON")
+    end)
+    createBindKeyRow(scroll, "⌨️", "Bind Key", Colors.TextDim, function(key)
+        DayiHub.SetBindKey(key)
+    end)
+    createDropdownRow(scroll, "🎯", "Target", {"Head", "Body"}, "Head", Colors.TextDim, function(val)
+        DayiHub.SetTarget(val)
+    end)
+    createDropdownRow(scroll, "⭕", "Show Circle", {"ON", "OFF"}, "OFF", Colors.Red, function(val)
+        DayiHub.SetToggle("ShowCircle", val == "ON")
+    end)
+    createSliderRow(scroll, "📏", "Circle Radius", 50, 500, 150, Colors.Cyan, function(val)
+        DayiHub.SetSlider("CircleRadius", val)
+    end)
+end
+
+local function buildPlayerPage()
+    local page = createPageContainer("Player")
+    createPageHeader(page, "👤", "Player", "Movement, physics and player modifications.", Colors.Cyan)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 6)
+
+    createToggleRow(scroll, "⚡", "Speed Hack", Colors.Cyan, false, function(on)
+        DayiHub.SetToggle("SpeedHack", on)
+    end)
+    createSliderRow(scroll, "⚡", "Walk Speed", 16, 200, 16, Colors.Cyan, function(val)
+        DayiHub.SetSlider("WalkSpeed", val)
+    end)
+    createToggleRow(scroll, "🐇", "Bunny Hop", Colors.Green, false, function(on)
+        DayiHub.SetToggle("BunnyHop", on)
+    end)
+    createToggleRow(scroll, "✈️", "Fly Mode", Colors.Purple, false, function(on)
+        DayiHub.SetToggle("FlyMode", on)
+    end)
+    createSliderRow(scroll, "✈️", "Fly Speed", 1, 100, 25, Colors.Purple, function(val)
+        DayiHub.SetSlider("FlySpeed", val)
+    end)
+    createToggleRow(scroll, "👻", "Noclip", Colors.Pink, false, function(on)
+        DayiHub.SetToggle("Noclip", on)
+    end)
+    createLockedRow(scroll, "🦅", "Infinite Jump")
+    createLockedRow(scroll, "⬆️", "Jump Power")
+    createLockedRow(scroll, "🔱", "Anti Ragdoll")
+    createLockedRow(scroll, "🛡️", "God Mode")
+end
+
+local function buildPremiumPage()
+    local page = createPageContainer("Premium")
+    createPageHeader(page, "👑", "Premium", "Exclusive features for premium members.", Colors.Purple)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 8)
+
+    -- Premium banner card
+    local banner = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 96),
+        BackgroundColor3 = Colors.PurpleDk,
+    })
+    makeUICorner(banner, 12)
+    makeUIStroke(banner, Colors.Purple, 1.5, 0)
+
+    local bannerIcon = makeFrame(banner, {
+        Size = UDim2.new(0, 56, 0, 56),
+        Position = UDim2.new(0, 14, 0.5, -28),
+        BackgroundColor3 = Colors.PurpleBg,
+    })
+    makeUICorner(bannerIcon, 28)
+    makeUIStroke(bannerIcon, Colors.Purple, 1.5, 0)
+    makeTextLabel(bannerIcon, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "👑",
+        TextColor3 = Colors.Text,
+        TextSize = 26,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(banner, {
+        Size = UDim2.new(1, -90, 0, 22),
+        Position = UDim2.new(0, 82, 0, 20),
+        BackgroundTransparency = 1,
+        Text = "Premium Member",
+        TextColor3 = Colors.Text,
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(banner, {
+        Size = UDim2.new(1, -90, 0, 16),
+        Position = UDim2.new(0, 82, 0, 44),
+        BackgroundTransparency = 1,
+        Text = "Active — Expires: Never",
+        TextColor3 = Colors.Purple,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+    local activeBadge = makeFrame(banner, {
+        Size = UDim2.new(0, 50, 0, 18),
+        Position = UDim2.new(0, 82, 0, 64),
+        BackgroundColor3 = Colors.GreenDk,
+    })
+    makeUICorner(activeBadge, 9)
+    makeTextLabel(activeBadge, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "Active",
+        TextColor3 = Colors.Green,
+        TextSize = 10,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Section label
+    makeTextLabel(scroll, {
+        Size = UDim2.new(1, 0, 0, 16),
+        BackgroundTransparency = 1,
+        Text = "UI Customization",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    createColorPickerRow(scroll, "🎨", "UI Accent Color", Colors.Purple,
+        {"Purple", "Blue", "Cyan", "Pink", "Green", "Amber", "Red"},
+        Config.AccentTheme,
+        function(themeName)
+            DayiHub.SetAccentTheme(themeName)
+        end)
+
+    -- Coming soon notice
+    local noticeCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 56),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(noticeCard, 10)
+    makeUIStroke(noticeCard, Colors.Border, 1, 0.9)
+    makeTextLabel(noticeCard, {
+        Size = UDim2.new(0, 32, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "🚀",
+        TextColor3 = Colors.Text,
+        TextSize = 18,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(noticeCard, {
+        Size = UDim2.new(1, -56, 0, 18),
+        Position = UDim2.new(0, 46, 0, 12),
+        BackgroundTransparency = 1,
+        Text = "More premium features coming soon",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(noticeCard, {
+        Size = UDim2.new(1, -56, 0, 14),
+        Position = UDim2.new(0, 46, 0, 32),
+        BackgroundTransparency = 1,
+        Text = "We are working on exclusive premium tools.",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+end
+
+createColorPickerRow = function(parent, iconText, label, accentColor, themes, currentTheme, onPick)
+    local row = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 0, 76),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(row, 10)
+    makeUIStroke(row, Colors.Border, 1, 0.9)
+
+    local accentBar = makeFrame(row, {
+        Size = UDim2.new(0, 4, 1, -16),
+        Position = UDim2.new(0, 0, 0.5, -30),
+        BackgroundColor3 = accentColor,
+    })
+    makeUICorner(accentBar, 2)
+
+    local iconCircle = makeFrame(row, {
+        Size = UDim2.new(0, 36, 0, 36),
+        Position = UDim2.new(0, 14, 0, 8),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(iconCircle, 18)
+    makeUIStroke(iconCircle, accentColor, 1, 0.55)
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = iconText,
+        TextColor3 = Colors.Text,
+        TextSize = 16,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(row, {
+        Size = UDim2.new(1, -60, 0, 18),
+        Position = UDim2.new(0, 60, 0, 10),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Colors.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local swatchContainer = makeFrame(row, {
+        Size = UDim2.new(1, -28, 0, 28),
+        Position = UDim2.new(0, 14, 0, 44),
+        BackgroundTransparency = 1,
+    })
+    makeUIListLayout(swatchContainer, 6, Enum.FillDirection.Horizontal)
+
+    local swatches = {}
+    for _, themeName in ipairs(themes) do
+        local theme = AccentThemes[themeName]
+        local swatch = makeButton(swatchContainer, {
+            Size = UDim2.new(0, 24, 0, 24),
+            BackgroundColor3 = theme.main,
+            Text = "",
+        })
+        makeUICorner(swatch, 12)
+        local selStroke = makeUIStroke(swatch, Colors.White, 2, 1)
+        if themeName == currentTheme then
+            selStroke.Transparency = 0
+        end
+        swatch.MouseButton1Click:Connect(function()
+            for _, s in ipairs(swatches) do s.Stroke.Transparency = 1 end
+            selStroke.Transparency = 0
+            if onPick then onPick(themeName) end
+        end)
+        table.insert(swatches, { Button = swatch, Stroke = selStroke })
+    end
+end
+
+local function buildSettingsPage()
+    local page = createPageContainer("Settings")
+    createPageHeader(page, "⚙️", "Settings", "Customize your DAYI HUB experience.", Colors.TextDim)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 6)
+
+    createBindKeyRow(scroll, "⌨️", "Toggle UI Key", Colors.Purple, function(key)
+        DayiHub.SetUIToggleKey(key)
+    end, Config.UIToggleKey)
+end
+
+local function buildChangelogPage()
+    local page = createPageContainer("Changelog")
+    createPageHeader(page, "📝", "Changelog", "What's new in DAYI HUB.", Colors.Cyan)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 10)
+
+    local updates = {
+        {
+            version = "v1.1",
+            date = "Latest Update",
+            badge = "NEW",
+            badgeColor = Colors.Green,
+            sections = {
+                { type = "added", items = {
+                    "First Launch onboarding flow (4-step welcome screen)",
+                    "Config persistence — settings now save and load automatically",
+                    "Changelog page to track updates",
+                }},
+                { type = "changed", items = {
+                    "Disclaimer warning now proceeds to onboarding on first launch",
+                    "Init flow restructured for cleaner startup sequence",
+                }},
+            },
+        },
+        {
+            version = "v1.0.1",
+            date = "Patch",
+            badge = nil,
+            sections = {
+                { type = "added", items = {
+                    "Disclaimer / warning UI before script loads",
+                    "Accept button required to proceed to main UI",
+                }},
+                { type = "changed", items = {
+                    "Startup sequence now shows warning before building UI",
+                }},
+            },
+        },
+        {
+            version = "v1.0",
+            date = "Major Release",
+            badge = "MAJOR",
+            badgeColor = Colors.Purple,
+            sections = {
+                { type = "added", items = {
+                    "Graphics page: Unlimited Zoom, FPS Booster, VFX Remover",
+                    "Graphics page: Shadow, Light, Water, Grass Optimizers",
+                    "Visual page: Wallhack ESP, Skeleton ESP, Box/Name ESP",
+                    "Visual page: Aimbot, Mobile Aimbot, FOV Circle",
+                    "Visual page: Bind Key, Target selection, Circle Radius",
+                    "Player page: Speed Hack, Walk Speed slider, Bunny Hop",
+                    "Player page: Fly Mode, Fly Speed, Noclip",
+                    "Premium page: UI Accent Color customization (7 themes)",
+                    "Settings page: Toggle UI key binding",
+                    "Credits page with developer info and Discord link",
+                    "Right panel: Premium status, System info, Quick actions",
+                    "Animated page transitions and UI hover effects",
+                    "Mobile support for aimbot",
+                    "Notification system",
+                }},
+                { type = "changed", items = {
+                    "Complete UI redesign with dark theme and accent colors",
+                    "Sidebar navigation with icons and active indicators",
+                }},
+            },
+        },
+    }
+
+    local sectionColors = {
+        added   = { color = Colors.Green, label = "+ Added" },
+        changed = { color = Colors.Cyan,  label = "~ Changed" },
+        removed = { color = Colors.Red,   label = "- Removed" },
+        fixed   = { color = Colors.Pink,  label = "! Fixed" },
+    }
+
+    for _, update in ipairs(updates) do
+        -- Version card
+        local card = makeFrame(scroll, {
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundColor3 = Colors.Card,
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        makeUICorner(card, 10)
+        makeUIStroke(card, Colors.Border, 1, 0.9)
+
+        local cardLayout = makeUIListLayout(card, 6)
+        cardLayout.Padding = UDim.new(0, 6)
+
+        -- Header row (version + date + badge)
+        local headerRow = makeFrame(card, {
+            Size = UDim2.new(1, -24, 0, 28),
+            BackgroundTransparency = 1,
+        })
+        headerRow.Position = UDim2.new(0, 12, 0, 10)
+
+        makeTextLabel(headerRow, {
+            Size = UDim2.new(0, 120, 1, 0),
+            BackgroundTransparency = 1,
+            Text = update.version,
+            TextColor3 = Colors.Text,
+            TextSize = 16,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        makeTextLabel(headerRow, {
+            Size = UDim2.new(1, -200, 1, 0),
+            Position = UDim2.new(0, 130, 0, 0),
+            BackgroundTransparency = 1,
+            Text = update.date,
+            TextColor3 = Colors.TextDim,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+
+        if update.badge then
+            local badge = makeFrame(headerRow, {
+                Size = UDim2.new(0, 50, 0, 20),
+                Position = UDim2.new(1, -56, 0.5, -10),
+                BackgroundColor3 = (update.badgeColor or Colors.Green),
+            })
+            makeUICorner(badge, 10)
+            makeTextLabel(badge, {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = update.badge,
+                TextColor3 = Colors.White,
+                TextSize = 9,
+                Font = Enum.Font.SourceSansBold,
+            })
+        end
+
+        -- Divider
+        local divider = makeFrame(card, {
+            Size = UDim2.new(1, -24, 0, 1),
+            Position = UDim2.new(0, 12, 0, 46),
+            BackgroundColor3 = Colors.Border,
+            BorderSizePixel = 0,
+        })
+
+        -- Sections container
+        local sectionsContainer = makeFrame(card, {
+            Size = UDim2.new(1, -24, 0, 0),
+            Position = UDim2.new(0, 12, 0, 54),
+            BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        local sectionsLayout = makeUIListLayout(sectionsContainer, 8)
+        sectionsLayout.Padding = UDim.new(0, 8)
+
+        for _, section in ipairs(update.sections) do
+            local secInfo = sectionColors[section.type] or sectionColors.added
+
+            local secFrame = makeFrame(sectionsContainer, {
+                Size = UDim2.new(1, 0, 0, 0),
+                BackgroundTransparency = 1,
+                AutomaticSize = Enum.AutomaticSize.Y,
+            })
+            local secItemLayout = makeUIListLayout(secFrame, 4)
+            secItemLayout.Padding = UDim.new(0, 4)
+
+            -- Section label
+            makeTextLabel(secFrame, {
+                Size = UDim2.new(1, 0, 0, 16),
+                BackgroundTransparency = 1,
+                Text = secInfo.label,
+                TextColor3 = secInfo.color,
+                TextSize = 12,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Font = Enum.Font.SourceSansBold,
+            })
+
+            -- Items
+            for _, item in ipairs(section.items) do
+                local itemFrame = makeFrame(secFrame, {
+                    Size = UDim2.new(1, 0, 0, 0),
+                    BackgroundTransparency = 1,
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                })
+
+                local dot = makeFrame(itemFrame, {
+                    Size = UDim2.new(0, 5, 0, 5),
+                    Position = UDim2.new(0, 6, 0, 7),
+                    BackgroundColor3 = secInfo.color,
+                })
+                makeUICorner(dot, 3)
+
+                makeTextLabel(itemFrame, {
+                    Size = UDim2.new(1, -20, 0, 0),
+                    Position = UDim2.new(0, 18, 0, 0),
+                    BackgroundTransparency = 1,
+                    Text = item,
+                    TextColor3 = Colors.TextDim,
+                    TextSize = 12,
+                    TextWrapped = true,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    Font = Enum.Font.SourceSans,
+                })
+            end
+        end
+
+        -- Bottom padding
+        makeTextLabel(card, {
+            Size = UDim2.new(1, 0, 0, 8),
+            BackgroundTransparency = 1,
+            Text = "",
+            Font = Enum.Font.SourceSans,
+        })
+    end
+end
+
+local function buildCreditsPage()
+    local page = createPageContainer("Credits")
+    createPageHeader(page, "🩷", "Credits", "The team behind DAYI HUB.", Colors.Pink)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 6)
+
+    -- Main banner
+    local banner = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 80),
+        BackgroundColor3 = Colors.PurpleDk,
+    })
+    makeUICorner(banner, 10)
+    makeUIStroke(banner, Colors.Purple, 1.5, 0)
+    makeTextLabel(banner, {
+        Size = UDim2.new(0, 40, 1, 0),
+        Position = UDim2.new(0, 14, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "🔥",
+        TextColor3 = Colors.Text,
+        TextSize = 36,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(banner, {
+        Size = UDim2.new(1, -60, 0, 24),
+        Position = UDim2.new(0, 56, 0, 14),
+        BackgroundTransparency = 1,
+        Text = "DAYI SCRIPT HUB",
+        TextColor3 = Colors.Text,
+        TextSize = 18,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(banner, {
+        Size = UDim2.new(1, -60, 0, 16),
+        Position = UDim2.new(0, 56, 0, 42),
+        BackgroundTransparency = 1,
+        Text = "v10.0 — Premium Utility Hub",
+        TextColor3 = Colors.TextDim,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Dev cards
+    local devCards = {
+        { emoji = "👑", name = "syfix", role = "Owner & Lead Developer", accent = Colors.Purple },
+        { emoji = "⚙️", name = "syfix", role = "UI Designer",            accent = Colors.Cyan },
+        { emoji = "🎨", name = "syfix", role = "Script Developer",       accent = Colors.Pink },
+    }
+
+    for _, dev in ipairs(devCards) do
+        local card = makeFrame(scroll, {
+            Size = UDim2.new(1, 0, 0, 64),
+            BackgroundColor3 = Colors.Card,
+        })
+        makeUICorner(card, 10)
+        makeUIStroke(card, Colors.Border, 1, 0.9)
+
+        local iconCircle = makeFrame(card, {
+            Size = UDim2.new(0, 44, 0, 44),
+            Position = UDim2.new(0, 12, 0.5, -22),
+            BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+        })
+        makeUICorner(iconCircle, 22)
+        makeUIStroke(iconCircle, dev.accent, 1.5, 0)
+        makeTextLabel(iconCircle, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = dev.emoji,
+            TextColor3 = Colors.Text,
+            TextSize = 22,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeTextLabel(card, {
+            Size = UDim2.new(1, -70, 0, 20),
+            Position = UDim2.new(0, 68, 0, 14),
+            BackgroundTransparency = 1,
+            Text = dev.name,
+            TextColor3 = Colors.Text,
+            TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeTextLabel(card, {
+            Size = UDim2.new(1, -70, 0, 16),
+            Position = UDim2.new(0, 68, 0, 36),
+            BackgroundTransparency = 1,
+            Text = dev.role,
+            TextColor3 = dev.accent,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+    end
+
+    -- Discord card
+    local discordCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 58),
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        BackgroundTransparency = 0.7,
+    })
+    makeUICorner(discordCard, 10)
+    makeUIStroke(discordCard, Color3.fromRGB(88, 101, 242), 1.5, 0.3)
+    makeTextLabel(discordCard, {
+        Size = UDim2.new(0, 30, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "💬",
+        TextColor3 = Colors.Text,
+        TextSize = 26,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(discordCard, {
+        Size = UDim2.new(1, -120, 0, 18),
+        Position = UDim2.new(0, 48, 0, 12),
+        BackgroundTransparency = 1,
+        Text = "Join our Discord",
+        TextColor3 = Colors.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(discordCard, {
+        Size = UDim2.new(1, -120, 0, 14),
+        Position = UDim2.new(0, 48, 0, 34),
+        BackgroundTransparency = 1,
+        Text = "discord.gg/QFwWBWM2j",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+    local joinBtn = makeButton(discordCard, {
+        Size = UDim2.new(0, 72, 0, 30),
+        Position = UDim2.new(1, -84, 0.5, -15),
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        Text = "Join",
+        TextColor3 = Colors.White,
+        TextSize = 13,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(joinBtn, 8)
+    joinBtn.MouseButton1Click:Connect(function()
+        pcall(function()
+            if setclipboard then
+                setclipboard("https://discord.gg/QFwWBWM2j")
+            end
+        end)
+        notify("Discord link copied!", "discord.gg/QFwWBWM2j", 4)
+    end)
+end
+
+buildPages = function()
+    buildGraphicsPage()
+    buildVisualPage()
+    buildPlayerPage()
+    buildPremiumPage()
+    buildSettingsPage()
+    buildChangelogPage()
+    buildCreditsPage()
+
+    -- Show default page
+    if PageFrames["Graphics"] then
+        PageFrames["Graphics"].Visible = true
+    end
+end
+
+--==========================================================================
+-- FEATURE IMPLEMENTATIONS (backend logic)
+--==========================================================================
+local function applyUnlimitedZoom()
+    pcall(function()
+        if Config.UnlimitedZoom then
+            LocalPlayer.CameraMaxZoomDistance = 1000000
+            LocalPlayer.CameraMinZoomDistance = 0.5
+        else
+            LocalPlayer.CameraMaxZoomDistance = State.OriginalZoomMax
+            LocalPlayer.CameraMinZoomDistance = State.OriginalZoomMin
+        end
+    end)
+end
+
+local function applyFPSBooster()
+    pcall(function()
+        if Config.FPSBooster then
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Material = Enum.Material.Plastic
+                    v.Reflectance = 0
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                    v.Enabled = false
+                end
+            end
+        end
+    end)
+end
+
+local function applyVFXRemover()
+    pcall(function()
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam")
+               or v:IsA("Sparkles") or v:IsA("Smoke") or v:IsA("Fire") then
+                v.Enabled = not Config.VFXRemover
+            end
+        end
+    end)
+end
+
+local function applyTextureOptimizer()
+    pcall(function()
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("Texture") or v:IsA("Decal") then
+                if Config.TextureOptimizer then
+                    State.TextureBackup[v] = v.Transparency
+                    v.Transparency = 1
+                else
+                    v.Transparency = State.TextureBackup[v] or 0
+                end
+            end
+        end
+    end)
+end
+
+local function applyShadowRemover()
+    pcall(function()
+        if Config.ShadowRemover then
+            Lighting.GlobalShadows = false
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then v.CastShadow = false end
+            end
+        else
+            Lighting.GlobalShadows = true
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then v.CastShadow = true end
+            end
+        end
+    end)
+end
+
+local function applyLightOptimizer()
+    pcall(function()
+        if Config.LightOptimizer then
+            State.LightingBackup.Brightness = Lighting.Brightness
+            State.LightingBackup.ClockTime = Lighting.ClockTime
+            Lighting.Brightness = 3
+            Lighting.ClockTime = 12
+            Lighting.EnvironmentDiffuseScale = 0
+            Lighting.EnvironmentSpecularScale = 0
+        else
+            Lighting.Brightness = State.LightingBackup.Brightness or 2
+            Lighting.ClockTime = State.LightingBackup.ClockTime or 14
+            Lighting.EnvironmentDiffuseScale = 1
+            Lighting.EnvironmentSpecularScale = 1
+        end
+    end)
+end
+
+local function applyWaterOptimizer()
+    pcall(function()
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and v.Material == Enum.Material.Water then
+                if Config.WaterOptimizer then
+                    State.WaterBackup[v] = v.Material
+                    v.Material = Enum.Material.Plastic
+                    v.Transparency = 0.5
+                else
+                    v.Material = State.WaterBackup[v] or Enum.Material.Water
+                    v.Transparency = 0
+                end
+            end
+        end
+    end)
+end
+
+local function applyGrassOptimizer()
+    pcall(function()
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and v.Material == Enum.Material.Grass then
+                if Config.GrassOptimizer then
+                    State.GrassBackup[v] = v.Material
+                    v.Material = Enum.Material.Plastic
+                else
+                    v.Material = State.GrassBackup[v] or Enum.Material.Grass
+                end
+            end
+        end
+    end)
+end
+
+--==========================================================================
+-- ESP SYSTEM
+--==========================================================================
+local function createHighlight(player)
+    local hl = Instance.new("Highlight")
+    hl.Name = "DAYI_ESP_HL_" .. player.Name
+    hl.FillColor = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = 0.7
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = player.Character
+    hl.Enabled = Config.WallhackESP
+    hl.Parent = CoreGui
+    return hl
+end
+
+local function createSkeletonESP(player)
+    local char = player.Character
+    if not char then return nil, nil end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "DAYI_ESP_Skel_" .. player.Name
+    folder.Parent = CoreGui
+
+    local bones = {
+        {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+        {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"},
+        {"LeftLowerArm", "LeftHand"},
+        {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"},
+        {"RightLowerArm", "RightHand"},
+        {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
+        {"LeftLowerLeg", "LeftFoot"},
+        {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"},
+        {"RightLowerLeg", "RightFoot"},
+    }
+
+    local lines = {}
+    for _, b in ipairs(bones) do
+        local p1 = char:FindFirstChild(b[1])
+        local p2 = char:FindFirstChild(b[2])
+        if p1 and p2 then
+            local line = Instance.new("Frame")
+            line.Name = "Bone_" .. b[1] .. "_" .. b[2]
+            line.BackgroundColor3 = Config.ESPColor or Color3.fromRGB(255, 0, 0)
+            line.BorderSizePixel = 0
+            line.Size = UDim2.new(0, 1, 0, 1)
+            line.Parent = folder
+            table.insert(lines, { line = line, p1 = p1, p2 = p2 })
+        end
+    end
+    return folder, lines
+end
+
+local function updateSkeletonLines(lines)
+    if not lines then return end
+    for _, bone in ipairs(lines) do
+        if bone.line.Parent then
+            local pos1, vis1 = Camera:WorldToViewportPoint(bone.p1.Position)
+            local pos2, vis2 = Camera:WorldToViewportPoint(bone.p2.Position)
+            if vis1 and vis2 then
+                bone.line.Visible = true
+                local dist = (Vector2.new(pos1.X, pos1.Y) - Vector2.new(pos2.X, pos2.Y)).Magnitude
+                local angle = math.atan2(pos2.Y - pos1.Y, pos2.X - pos1.X)
+                bone.line.Size = UDim2.new(0, dist, 0, 2)
+                bone.line.Position = UDim2.new(0, pos1.X, 0, pos1.Y)
+                bone.line.Rotation = math.deg(angle)
+            else
+                bone.line.Visible = false
+            end
+        end
+    end
+end
+
+local function createESPForPlayer(player)
+    if player == LocalPlayer then return end
+    if State.ESPObjects[player] then return end
+    local espData = {}
+
+    if Config.WallhackESP then espData.highlight = createHighlight(player) end
+    if Config.SkeletonESP then espData.skeleton, espData.skeletonLines = createSkeletonESP(player) end
+
+    State.ESPObjects[player] = espData
+end
+
+local function removeESPForPlayer(player)
+    local espData = State.ESPObjects[player]
+    if not espData then return end
+    if espData.highlight then espData.highlight:Destroy() end
+    if espData.skeleton then espData.skeleton:Destroy() end
+    State.ESPObjects[player] = nil
+end
+
+local function refreshAllESP()
+    for player, _ in pairs(State.ESPObjects) do
+        removeESPForPlayer(player)
+    end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createESPForPlayer(player)
+        end
+    end
+end
+
+local function updateESP()
+    for player, espData in pairs(State.ESPObjects) do
+        local char = player.Character
+        if not char or not isAlive(player) then
+            if espData.highlight then espData.highlight.Adornee = nil end
+        else
+            if espData.highlight then
+                espData.highlight.Adornee = char
+                espData.highlight.Enabled = Config.WallhackESP
+            end
+            if espData.skeletonLines then
+                updateSkeletonLines(espData.skeletonLines)
+            end
+        end
+    end
+end
+
+local function startESPUpdater()
+    if State.ESPUpdateConnection then
+        State.ESPUpdateConnection:Disconnect()
+    end
+    State.ESPUpdateConnection = RunService.RenderStepped:Connect(updateESP)
+end
+
+--==========================================================================
+-- AIMBOT
+--==========================================================================
+local function getClosestPlayer()
+    local closest, closestDist = nil, Config.CircleRadius
+    local viewportSize = Camera.ViewportSize
+    local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and isAlive(player) and not isSameTeam(player) then
+            local targetPart = getTargetPart(player)
+            if targetPart then
+                if not (Config.VisibilityCheck and isBehindWall(targetPart)) then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                    if onScreen then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if Config.FOVCheck then
+                            if dist <= Config.CircleRadius and dist < closestDist then
+                                closestDist = dist
+                                closest = player
+                            end
+                        else
+                            if dist < closestDist then
+                                closestDist = dist
+                                closest = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+local function aimbotStep()
+    if not Config.Aimbot then return end
+    if Config.BindKey ~= "None" and not State.BindKeyDown then return end
+
+    local target = getClosestPlayer()
+    if target then
+        local targetPart = getTargetPart(target)
+        if targetPart then
+            local currentCF = Camera.CFrame
+            local targetCF = CFrame.new(currentCF.Position, targetPart.Position)
+            if Config.AimbotSmoothness > 0 and Config.AimbotSmoothness < 1 then
+                Camera.CFrame = currentCF:Lerp(targetCF, 1 - Config.AimbotSmoothness)
+            else
+                Camera.CFrame = targetCF
+            end
+        end
+    end
+end
+
+local function toggleAimbot()
+    if State.AimbotConnection then
+        State.AimbotConnection:Disconnect()
+        State.AimbotConnection = nil
+    end
+    if Config.Aimbot then
+        State.AimbotConnection = RunService.RenderStepped:Connect(aimbotStep)
+    end
+end
+
+local function mobileAimbotStep()
+    if not Config.MobileAimbot then return end
+    local target = getClosestPlayer()
+    if target then
+        local targetPart = getTargetPart(target)
+        if targetPart then
+            local currentCF = Camera.CFrame
+            local targetCF = CFrame.new(currentCF.Position, targetPart.Position)
+            if Config.AimbotSmoothness > 0 and Config.AimbotSmoothness < 1 then
+                Camera.CFrame = currentCF:Lerp(targetCF, 1 - Config.AimbotSmoothness)
+            else
+                Camera.CFrame = targetCF
+            end
+        end
+    end
+end
+
+local function toggleMobileAimbot()
+    if State.MobileAimbotConn then
+        State.MobileAimbotConn:Disconnect()
+        State.MobileAimbotConn = nil
+    end
+    if Config.MobileAimbot then
+        State.MobileAimbotConn = RunService.RenderStepped:Connect(mobileAimbotStep)
+    end
+end
+
+--==========================================================================
+-- SHOW CIRCLE
+--==========================================================================
+local function updateCircle()
+    if Config.ShowCircle then
+        if not State.CirclePart then
+            local part = Instance.new("Part")
+            part.Name = "DAYI_AimCircle"
+            part.Shape = Enum.PartType.Cylinder
+            part.Material = Enum.Material.ForceField
+            part.Color = Color3.fromRGB(0, 220, 220)
+            part.Transparency = 0.8
+            part.Anchored = true
+            part.CanCollide = false
+            part.CanQuery = false
+            part.CanTouch = false
+            part.Parent = Workspace
+            State.CirclePart = part
+        end
+        State.CirclePart.Size = Vector3.new(0.1, Config.CircleRadius * 2, Config.CircleRadius * 2)
+        State.CirclePart.CFrame = Camera.CFrame * CFrame.Angles(0, math.rad(90), 0) * CFrame.new(0, 0, -3)
+    else
+        if State.CirclePart then
+            State.CirclePart:Destroy()
+            State.CirclePart = nil
+        end
+    end
+end
+
+local function startCircleUpdater()
+    RunService.RenderStepped:Connect(function()
+        if State.CirclePart and Config.ShowCircle then
+            State.CirclePart.CFrame = Camera.CFrame * CFrame.Angles(0, math.rad(90), 0) * CFrame.new(0, 0, -3)
+        end
+    end)
+end
+
+--==========================================================================
+-- PLAYER FEATURES
+--==========================================================================
+local function applyWalkSpeed()
+    local hum = getHumanoid(LocalPlayer)
+    if hum then
+        hum.WalkSpeed = Config.SpeedHack and Config.WalkSpeed or State.OriginalWalkSpeed
+    end
+end
+
+local function setupBunnyHop()
+    if State.BunnyHopConnection then
+        State.BunnyHopConnection:Disconnect()
+        State.BunnyHopConnection = nil
+    end
+    if Config.BunnyHop then
+        State.BunnyHopConnection = UserInputService.JumpRequest:Connect(function()
+            local hum = getHumanoid(LocalPlayer)
+            if hum and hum.Health > 0 then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    end
+end
+
+local function startFly()
+    if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+    if State.FlyBodyVelocity then State.FlyBodyVelocity:Destroy() State.FlyBodyVelocity = nil end
+    if State.FlyBodyGyro then State.FlyBodyGyro:Destroy() State.FlyBodyGyro = nil end
+    if not Config.FlyMode then return end
+
+    local hum = getHumanoid(LocalPlayer)
+    local hrp = getHRP(LocalPlayer)
+    if not hum or not hrp then return end
+
+    hum.PlatformStand = true
+
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = hrp
+    State.FlyBodyVelocity = bv
+
+    local gyro = Instance.new("BodyGyro")
+    gyro.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    gyro.D = 100
+    gyro.P = 10000
+    gyro.CFrame = Camera.CFrame
+    gyro.Parent = hrp
+    State.FlyBodyGyro = gyro
+
+    State.FlyConnection = RunService.RenderStepped:Connect(function()
+        local dir = Vector3.zero
+        local camCF = Camera.CFrame
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += camCF.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= camCF.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= camCF.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += camCF.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.new(0, 1, 0) end
+        if dir.Magnitude > 0 then dir = dir.Unit * Config.FlySpeed end
+        bv.Velocity = dir
+        gyro.CFrame = Camera.CFrame
+    end)
+end
+
+local function stopFly()
+    if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+    if State.FlyBodyVelocity then State.FlyBodyVelocity:Destroy() State.FlyBodyVelocity = nil end
+    if State.FlyBodyGyro then State.FlyBodyGyro:Destroy() State.FlyBodyGyro = nil end
+    local hum = getHumanoid(LocalPlayer)
+    if hum then hum.PlatformStand = false end
+end
+
+local function toggleFly()
+    if Config.FlyMode then startFly() else stopFly() end
+end
+
+local function toggleNoclip()
+    if State.NoclipConnection then
+        State.NoclipConnection:Disconnect()
+        State.NoclipConnection = nil
+    end
+    if Config.Noclip then
+        State.NoclipConnection = RunService.Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = true end
+            end
+        end
+    end
+end
+
+--==========================================================================
+-- BIND KEY HANDLING
+--==========================================================================
+local function setupBindKey()
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if Config.BindKey ~= "None" then
+            local kc = keyNameToKeyCode(Config.BindKey)
+            if kc and input.KeyCode == kc then
+                State.BindKeyDown = true
+            end
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if Config.BindKey ~= "None" then
+            local kc = keyNameToKeyCode(Config.BindKey)
+            if kc and input.KeyCode == kc then
+                State.BindKeyDown = false
+            end
+        end
+    end)
+end
+
+--==========================================================================
+-- UI TOGGLE KEY (RightShift)
+--==========================================================================
+local function setupUIToggle()
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        local kc = keyNameToKeyCode(Config.UIToggleKey)
+        if kc and input.KeyCode == kc then
+            State.UIVisible = not State.UIVisible
+            if MainFrame and MainFrameScale then
+                if State.UIVisible then
+                    MainFrameScale.Scale = 0.85
+                    MainFrame.Visible = true
+                    TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+                else
+                    local tween = TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85})
+                    tween:Play()
+                    task.delay(0.2, function()
+                        MainFrame.Visible = false
+                        MainFrameScale.Scale = 1
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+--==========================================================================
+-- CHARACTER HANDLER
+--==========================================================================
+local function onCharacterAdded(char)
+    task.wait(0.5)
+    local hum = getHumanoid(LocalPlayer)
+    if hum then
+        State.OriginalWalkSpeed = hum.WalkSpeed
+        State.OriginalJumpPower = hum.JumpPower
+    end
+    applyUnlimitedZoom()
+    applyWalkSpeed()
+    if Config.FlyMode then toggleFly() end
+    if Config.Noclip then toggleNoclip() end
+    refreshAllESP()
+end
+
+local function setupPlayerEvents()
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            if Config.WallhackESP or Config.SkeletonESP then
+                createESPForPlayer(player)
+            end
+        end)
+    end)
+    Players.PlayerRemoving:Connect(function(player)
+        removeESPForPlayer(player)
+    end)
+end
+
+--==========================================================================
+-- PUBLIC API
+--==========================================================================
+DayiHub = {}
+
+function DayiHub.SetToggle(name, value)
+    Config[name] = value
+    if name == "UnlimitedZoom" then applyUnlimitedZoom()
+    elseif name == "FPSBooster" then applyFPSBooster()
+    elseif name == "VFXRemover" then applyVFXRemover()
+    elseif name == "TextureOptimizer" then applyTextureOptimizer()
+    elseif name == "ShadowRemover" then applyShadowRemover()
+    elseif name == "LightOptimizer" then applyLightOptimizer()
+    elseif name == "WaterOptimizer" then applyWaterOptimizer()
+    elseif name == "GrassOptimizer" then applyGrassOptimizer()
+    elseif name == "WallhackESP" then refreshAllESP()
+    elseif name == "SkeletonESP" then refreshAllESP()
+    elseif name == "Aimbot" then toggleAimbot()
+    elseif name == "MobileAimbot" then toggleMobileAimbot()
+    elseif name == "ShowCircle" then updateCircle()
+    elseif name == "SpeedHack" then applyWalkSpeed()
+    elseif name == "BunnyHop" then setupBunnyHop()
+    elseif name == "FlyMode" then toggleFly()
+    elseif name == "Noclip" then toggleNoclip()
+    end
+end
+
+function DayiHub.SetSlider(name, value)
+    Config[name] = value
+    if name == "WalkSpeed" then applyWalkSpeed()
+    elseif name == "CircleRadius" then updateCircle()
+    end
+end
+
+function DayiHub.SetBindKey(keyName)
+    Config.BindKey = keyName
+    State.BindKeyDown = false
+end
+
+function DayiHub.SetUIToggleKey(keyName)
+    Config.UIToggleKey = keyName
+end
+
+function DayiHub.SetAccentTheme(themeName)
+    Config.AccentTheme = themeName
+    applyAccentTheme(themeName)
+    destroyOldGui()
+    PageFrames = {}
+    SidebarButtons = {}
+    buildGUI()
+    buildPages()
+    activeTab = "Premium"
+    if PageFrames["Premium"] then
+        PageFrames["Premium"].Visible = true
+    end
+    notify("DAYI HUB", "UI color changed to " .. themeName .. ".", 3)
+end
+
+function DayiHub.SetTarget(target)
+    Config.Target = target
+end
+
+getgenv().DayiHub = DayiHub
+
+--==========================================================================
+-- INIT
+--==========================================================================
+local function showWarningUI(onAccept)
+    -- Destroy any previous warning GUI
+    local oldWarn = CoreGui:FindFirstChild("DAYI_HUB_WARNING")
+    if oldWarn then oldWarn:Destroy() end
+    local oldWarn2 = LocalPlayer.PlayerGui:FindFirstChild("DAYI_HUB_WARNING")
+    if oldWarn2 then oldWarn2:Destroy() end
+
+    local warnGui = Instance.new("ScreenGui")
+    warnGui.Name = "DAYI_HUB_WARNING"
+    warnGui.ResetOnSpawn = false
+    warnGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    warnGui.IgnoreGuiInset = true
+    pcall(function() warnGui.Parent = CoreGui end)
+    if warnGui.Parent == nil then
+        warnGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    -- Dim background
+    local dim = makeFrame(warnGui, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+    })
+
+    -- Card
+    local card = makeFrame(dim, {
+        Size = UDim2.new(0, 460, 0, 420),
+        Position = UDim2.new(0.5, -230, 0.5, -210),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(card, 14)
+    makeUIStroke(card, Colors.Purple, 1.5, 0)
+
+    local cardScale = Instance.new("UIScale")
+    cardScale.Scale = 0.85
+    cardScale.Parent = card
+    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+    -- Close (X) button - top right
+    local closeBtn = makeButton(card, {
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(1, -38, 0, 10),
+        BackgroundColor3 = Color3.fromRGB(40, 20, 30),
+        Text = "✕",
+        TextColor3 = Colors.TextDim,
+        TextSize = 14,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(closeBtn, 8)
+    closeBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(cardScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+        TweenService:Create(dim, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        task.wait(0.2)
+        warnGui:Destroy()
+    end)
+
+    -- Warning icon
+    local iconCircle = makeFrame(card, {
+        Size = UDim2.new(0, 64, 0, 64),
+        Position = UDim2.new(0.5, -32, 0, 24),
+        BackgroundColor3 = Color3.fromRGB(80, 30, 20),
+    })
+    makeUICorner(iconCircle, 32)
+    makeUIStroke(iconCircle, Colors.Red, 1.5, 0)
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "⚠️",
+        TextColor3 = Colors.Text,
+        TextSize = 30,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Title
+    makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 26),
+        Position = UDim2.new(0, 20, 0, 100),
+        BackgroundTransparency = 1,
+        Text = "Disclaimer",
+        TextColor3 = Colors.Text,
+        TextSize = 20,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Body text
+    local bodyText = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 150),
+        Position = UDim2.new(0, 20, 0, 134),
+        BackgroundTransparency = 1,
+        Text = 'This project is provided as-is. Using custom scripts may violate the rules of some experiences and could result in restrictions or other actions depending on the game\'s policies.\n\nBy clicking "I Accept", you confirm that you understand these risks and choose to proceed.',
+        TextColor3 = Colors.TextDim,
+        TextSize = 15,
+        TextWrapped = true,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Version label
+    makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 16),
+        Position = UDim2.new(0, 20, 1, -108),
+        BackgroundTransparency = 1,
+        Text = "Version: v1.1",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Accept button
+    local acceptBtn = makeButton(card, {
+        Size = UDim2.new(0, 200, 0, 42),
+        Position = UDim2.new(0, 20, 1, -56),
+        BackgroundColor3 = Colors.Purple,
+        Text = "I Accept",
+        TextColor3 = Colors.White,
+        TextSize = 15,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(acceptBtn, 10)
+
+    -- Exit button
+    local exitBtn = makeButton(card, {
+        Size = UDim2.new(0, 200, 0, 42),
+        Position = UDim2.new(0, 240, 1, -56),
+        BackgroundColor3 = Color3.fromRGB(40, 20, 30),
+        Text = "Exit",
+        TextColor3 = Colors.TextDim,
+        TextSize = 15,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(exitBtn, 10)
+    makeUIStroke(exitBtn, Colors.Border, 1, 0.7)
+
+    -- Hover effects for Accept
+    acceptBtn.MouseEnter:Connect(function()
+        TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleBtn}):Play()
+    end)
+    acceptBtn.MouseLeave:Connect(function()
+        TweenService:Create(acceptBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple}):Play()
+    end)
+
+    -- Hover effects for Exit
+    exitBtn.MouseEnter:Connect(function()
+        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(70, 30, 40)}):Play()
+    end)
+    exitBtn.MouseLeave:Connect(function()
+        TweenService:Create(exitBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(40, 20, 30)}):Play()
+    end)
+
+    -- Hover effects for Close (X)
+    closeBtn.MouseEnter:Connect(function()
+        TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Red}):Play()
+        TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.White}):Play()
+    end)
+    closeBtn.MouseLeave:Connect(function()
+        TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(40, 20, 30)}):Play()
+        TweenService:Create(closeBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.TextDim}):Play()
+    end)
+
+    local function closeWarning()
+        TweenService:Create(cardScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+        TweenService:Create(dim, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        task.wait(0.2)
+        warnGui:Destroy()
+    end
+
+    acceptBtn.MouseButton1Click:Connect(function()
+        closeWarning()
+        onAccept()
+    end)
+
+    exitBtn.MouseButton1Click:Connect(closeWarning)
+end
+
+--==========================================================================
+-- FIRST LAUNCH ONBOARDING
+--==========================================================================
+local function showOnboarding(onComplete)
+    local oldOb = CoreGui:FindFirstChild("DAYI_HUB_ONBOARDING")
+    if oldOb then oldOb:Destroy() end
+
+    local obGui = Instance.new("ScreenGui")
+    obGui.Name = "DAYI_HUB_ONBOARDING"
+    obGui.ResetOnSpawn = false
+    obGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    obGui.IgnoreGuiInset = true
+    pcall(function() obGui.Parent = CoreGui end)
+    if obGui.Parent == nil then
+        obGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    local dim = makeFrame(obGui, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+    })
+
+    local card = makeFrame(dim, {
+        Size = UDim2.new(0, 480, 0, 360),
+        Position = UDim2.new(0.5, -240, 0.5, -180),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(card, 14)
+    makeUIStroke(card, Colors.Purple, 1.5, 0)
+
+    local cardScale = Instance.new("UIScale")
+    cardScale.Scale = 0.85
+    cardScale.Parent = card
+    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+    -- Step dots (progress indicator)
+    local dotsFrame = makeFrame(card, {
+        Size = UDim2.new(0, 120, 0, 10),
+        Position = UDim2.new(0.5, -60, 0, 24),
+        BackgroundTransparency = 1,
+    })
+    local dots = {}
+    for i = 1, 4 do
+        local dot = makeFrame(dotsFrame, {
+            Size = UDim2.new(0, 10, 0, 10),
+            Position = UDim2.new(0, (i - 1) * 30, 0, 0),
+            BackgroundColor3 = Color3.fromRGB(50, 50, 60),
+        })
+        makeUICorner(dot, 5)
+        dots[i] = dot
+    end
+
+    -- Icon area (emoji)
+    local iconLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, 0, 0, 60),
+        Position = UDim2.new(0, 0, 0, 50),
+        BackgroundTransparency = 1,
+        Text = "👋",
+        TextColor3 = Colors.Text,
+        TextSize = 44,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Title
+    local titleLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 30),
+        Position = UDim2.new(0, 20, 0, 120),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Colors.Text,
+        TextSize = 22,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Body
+    local bodyLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 80),
+        Position = UDim2.new(0, 20, 0, 156),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Colors.TextDim,
+        TextSize = 15,
+        TextWrapped = true,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Back button
+    local backBtn = makeButton(card, {
+        Size = UDim2.new(0, 100, 0, 42),
+        Position = UDim2.new(0, 20, 1, -56),
+        BackgroundColor3 = Color3.fromRGB(40, 20, 30),
+        Text = "Back",
+        TextColor3 = Colors.TextDim,
+        TextSize = 15,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(backBtn, 10)
+    makeUIStroke(backBtn, Colors.Border, 1, 0.7)
+
+    -- Next button
+    local nextBtn = makeButton(card, {
+        Size = UDim2.new(0, 100, 0, 42),
+        Position = UDim2.new(1, -120, 1, -56),
+        BackgroundColor3 = Colors.Purple,
+        Text = "Next",
+        TextColor3 = Colors.White,
+        TextSize = 15,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(nextBtn, 10)
+
+    -- Hover effects
+    nextBtn.MouseEnter:Connect(function()
+        TweenService:Create(nextBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleBtn}):Play()
+    end)
+    nextBtn.MouseLeave:Connect(function()
+        TweenService:Create(nextBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple}):Play()
+    end)
+    backBtn.MouseEnter:Connect(function()
+        TweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(70, 30, 40)}):Play()
+    end)
+    backBtn.MouseLeave:Connect(function()
+        TweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(40, 20, 30)}):Play()
+    end)
+
+    local steps = {
+        {
+            icon = "👋",
+            title = "Welcome to DAYI HUB",
+            body = "Thanks for using DAYI HUB! Let's quickly set things up. You can always change these later in the UI.",
+        },
+        {
+            icon = "🎨",
+            title = "Graphics",
+            body = "Optimize your graphics for smoother gameplay. All features start disabled — enable FPS Booster or Unlimited Zoom in the Graphics tab whenever you want.",
+        },
+        {
+            icon = "🏃",
+            title = "Player",
+            body = "Adjust your movement settings. Walk Speed, Jump Power, Fly, and Noclip can all be configured in the Player tab.",
+        },
+        {
+            icon = "✅",
+            title = "Finished!",
+            body = "You're all set. Enjoy using DAYI HUB! Press the key shown in the status bar to toggle the menu.",
+        },
+    }
+
+    local currentStep = 1
+
+    local function updateStep()
+        local s = steps[currentStep]
+        iconLabel.Text = s.icon
+        titleLabel.Text = s.title
+        bodyLabel.Text = s.body
+
+        -- Update dots
+        for i = 1, 4 do
+            if i == currentStep then
+                TweenService:Create(dots[i], TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple}):Play()
+            elseif i < currentStep then
+                TweenService:Create(dots[i], TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(100, 80, 120)}):Play()
+            else
+                TweenService:Create(dots[i], TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 60)}):Play()
+            end
+        end
+
+        -- Fade in content
+        iconLabel.TextTransparency = 1
+        titleLabel.TextTransparency = 1
+        bodyLabel.TextTransparency = 1
+        TweenService:Create(iconLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        TweenService:Create(titleLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        TweenService:Create(bodyLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+
+        -- Button states
+        if currentStep == 1 then
+            backBtn.Visible = false
+        else
+            backBtn.Visible = true
+        end
+
+        if currentStep == 4 then
+            nextBtn.Text = "Finish"
+        else
+            nextBtn.Text = "Next"
+        end
+    end
+
+    backBtn.MouseButton1Click:Connect(function()
+        if currentStep > 1 then
+            currentStep = currentStep - 1
+            updateStep()
+        end
+    end)
+
+    nextBtn.MouseButton1Click:Connect(function()
+        if currentStep < 4 then
+            currentStep = currentStep + 1
+            updateStep()
+        else
+            -- Finish: close onboarding, save config, proceed
+            TweenService:Create(cardScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+            TweenService:Create(dim, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+            task.wait(0.2)
+            obGui:Destroy()
+            Config.FirstLaunch = false
+            saveConfig()
+            onComplete()
+        end
+    end)
+
+    updateStep()
+end
+
+local function showLoadingScreen(onComplete)
+    local oldLoad = CoreGui:FindFirstChild("DAYI_HUB_LOADING")
+    if oldLoad then oldLoad:Destroy() end
+    local oldLoad2 = LocalPlayer.PlayerGui:FindFirstChild("DAYI_HUB_LOADING")
+    if oldLoad2 then oldLoad2:Destroy() end
+
+    local loadGui = Instance.new("ScreenGui")
+    loadGui.Name = "DAYI_HUB_LOADING"
+    loadGui.ResetOnSpawn = false
+    loadGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    loadGui.IgnoreGuiInset = true
+    pcall(function() loadGui.Parent = CoreGui end)
+    if loadGui.Parent == nil then
+        loadGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    local dim = makeFrame(loadGui, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+    })
+
+    local card = makeFrame(dim, {
+        Size = UDim2.new(0, 420, 0, 340),
+        Position = UDim2.new(0.5, -210, 0.5, -170),
+        BackgroundColor3 = Colors.Bg,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(card, 14)
+    makeUIStroke(card, Colors.Purple, 1.5, 0)
+
+    local cardScale = Instance.new("UIScale")
+    cardScale.Scale = 0.85
+    cardScale.Parent = card
+    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+    -- Title
+    makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 28),
+        Position = UDim2.new(0, 20, 0, 24),
+        BackgroundTransparency = 1,
+        Text = "Loading Modules...",
+        TextColor3 = Colors.Text,
+        TextSize = 20,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Progress bar background
+    local barBg = makeFrame(card, {
+        Size = UDim2.new(1, -40, 0, 22),
+        Position = UDim2.new(0, 20, 0, 64),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+        BorderSizePixel = 0,
+    })
+    makeUICorner(barBg, 6)
+
+    -- Progress bar fill
+    local barFill = makeFrame(barBg, {
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Colors.Purple,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(barFill, 6)
+
+    -- Progress percentage text
+    local pctLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 16),
+        Position = UDim2.new(0, 20, 0, 92),
+        BackgroundTransparency = 1,
+        Text = "0%",
+        TextColor3 = Colors.TextDim,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Font = Enum.Font.SourceSans,
+    })
+
+    -- Module list
+    local modules = {
+        {name = "Graphics",      icon = "🎨"},
+        {name = "Visual",        icon = "👁"},
+        {name = "Player",        icon = "🏃"},
+        {name = "Settings",      icon = "⚙"},
+        {name = "Premium",       icon = "👑"},
+        {name = "Notifications", icon = "🔔"},
+    }
+
+    local listStartY = 124
+    local rowH = 30
+    local moduleLabels = {}
+
+    for i, mod in ipairs(modules) do
+        local row = makeFrame(card, {
+            Size = UDim2.new(1, -40, 0, rowH),
+            Position = UDim2.new(0, 20, 0, listStartY + (i - 1) * rowH),
+            BackgroundTransparency = 1,
+        })
+
+        makeTextLabel(row, {
+            Size = UDim2.new(0, 24, 1, 0),
+            BackgroundTransparency = 1,
+            Text = mod.icon,
+            TextColor3 = Colors.TextDim,
+            TextSize = 16,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        makeTextLabel(row, {
+            Size = UDim2.new(1, -60, 1, 0),
+            Position = UDim2.new(0, 28, 0, 0),
+            BackgroundTransparency = 1,
+            Text = mod.name,
+            TextColor3 = Colors.TextDim,
+            TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+
+        local statusLabel = makeTextLabel(row, {
+            Size = UDim2.new(0, 40, 1, 0),
+            Position = UDim2.new(1, -40, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            TextColor3 = Colors.TextDim,
+            TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        moduleLabels[i] = {row = row, status = statusLabel, name = mod.name}
+    end
+
+    -- Animate progress
+    local totalSteps = #modules
+    local stepDuration = 0.35
+
+    task.spawn(function()
+        for i = 1, totalSteps do
+            local pct = math.floor((i / totalSteps) * 100)
+
+            -- Animate bar fill
+            TweenService:Create(barFill, TweenInfo.new(stepDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(i / totalSteps, 0, 1, 0)}):Play()
+            pctLabel.Text = pct .. "%"
+
+            -- Mark module as loaded with checkmark
+            local ml = moduleLabels[i]
+            ml.status.Text = "✔"
+            TweenService:Create(ml.status, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130)}):Play()
+
+            task.wait(stepDuration)
+        end
+
+        -- Final 100%
+        pctLabel.Text = "100%"
+        task.wait(0.4)
+
+        -- Fade out
+        TweenService:Create(cardScale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+        TweenService:Create(dim, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        task.wait(0.3)
+        loadGui:Destroy()
+        if onComplete then onComplete() end
+    end)
+end
+
+local function showWelcomeBackNotification(onComplete)
+    if not ScreenGui or not MainFrame then
+        if onComplete then onComplete() end
+        return
+    end
+
+    local notifGui = Instance.new("ScreenGui")
+    notifGui.Name = "DAYI_HUB_WelcomeBack"
+    notifGui.ResetOnSpawn = false
+    notifGui.IgnoreGuiInset = true
+    notifGui.DisplayOrder = 999
+    pcall(function() notifGui.Parent = CoreGui end)
+    if notifGui.Parent then
+        notifGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    local card = makeFrame(notifGui, {
+        Size = UDim2.new(0, 360, 0, 72),
+        Position = UDim2.new(0.5, -180, 0.5, -420),
+        BackgroundColor3 = Colors.Card,
+        BorderSizePixel = 0,
+        Visible = false,
+    })
+    makeUICorner(card, 10)
+    makeUIStroke(card, Colors.Purple, 1.5, 0)
+
+    local accentBar = makeFrame(card, {
+        Size = UDim2.new(0, 4, 1, 0),
+        BackgroundColor3 = Colors.Purple,
+    })
+    makeUICorner(accentBar, 2)
+
+    local iconCircle = makeFrame(card, {
+        Size = UDim2.new(0, 40, 0, 40),
+        Position = UDim2.new(0, 14, 0.5, -20),
+        BackgroundColor3 = Colors.PurpleBg,
+    })
+    makeUICorner(iconCircle, 20)
+    makeUIStroke(iconCircle, Colors.Purple, 1, 0.4)
+
+    makeTextLabel(iconCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "👋",
+        TextColor3 = Colors.White,
+        TextSize = 20,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(card, {
+        Size = UDim2.new(1, -74, 0, 20),
+        Position = UDim2.new(0, 62, 0, 14),
+        BackgroundTransparency = 1,
+        Text = "Welcome Back!",
+        TextColor3 = Colors.Text,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(card, {
+        Size = UDim2.new(1, -74, 0, 16),
+        Position = UDim2.new(0, 62, 0, 36),
+        BackgroundTransparency = 1,
+        Text = "Glad to see you again. Enjoy DAYI HUB!",
+        TextColor3 = Colors.TextDim,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local cardScale = Instance.new("UIScale")
+    cardScale.Scale = 0.6
+    cardScale.Parent = card
+
+    card.Visible = true
+    card.BackgroundTransparency = 1
+
+    TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(cardScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+    task.delay(4, function()
+        TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        local outTween = TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.6})
+        outTween:Play()
+        outTween.Completed:Wait()
+        notifGui:Destroy()
+        if onComplete then onComplete() end
+    end)
+end
+
+local function init()
+    loadConfig()
+
+    -- Force all features OFF on startup; user enables what they want
+    for _, k in ipairs({
+        "UnlimitedZoom", "FPSBooster", "VFXRemover", "TextureOptimizer",
+        "ShadowRemover", "LightOptimizer", "WaterOptimizer", "GrassOptimizer",
+        "WallhackESP", "SkeletonESP", "BoxESP", "NameESP",
+        "Aimbot", "MobileAimbot", "ShowCircle",
+        "SpeedHack", "BunnyHop", "FlyMode", "Noclip", "InfiniteJump",
+        "AntiRagdoll", "GodMode",
+        "FOVCheck", "TeamCheck", "VisibilityCheck",
+    }) do
+        Config[k] = false
+    end
+
+    State.OriginalZoomMax = LocalPlayer.CameraMaxZoomDistance
+    State.OriginalZoomMin = LocalPlayer.CameraMinZoomDistance
+    local hum = getHumanoid(LocalPlayer)
+    if hum then
+        State.OriginalWalkSpeed = hum.WalkSpeed
+        State.OriginalJumpPower = hum.JumpPower
+    end
+
+    local function buildMainUI()
+        buildGUI()
+        buildPages()
+
+        if MainFrameScale then
+            MainFrameScale.Scale = 0.85
+            TweenService:Create(MainFrameScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        end
+
+        -- Apply defaults
+        applyUnlimitedZoom()
+        applyFPSBooster()
+        refreshAllESP()
+        startESPUpdater()
+        toggleAimbot()
+        toggleMobileAimbot()
+        updateCircle()
+        startCircleUpdater()
+        applyWalkSpeed()
+        setupBunnyHop()
+        toggleFly()
+        toggleNoclip()
+        setupBindKey()
+        setupUIToggle()
+        setupPlayerEvents()
+
+        if LocalPlayer.Character then
+            onCharacterAdded(LocalPlayer.Character)
+        end
+        LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+        Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+            Camera = Workspace.CurrentCamera
+        end)
+
+        applyAccentTheme(Config.AccentTheme)
+        notify("DAYI HUB v10.0", "Loaded! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
+        task.delay(2, function()
+            notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
+        end)
+        print("[DAYI HUB] v10.0 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
+        print("[DAYI HUB] Discord: discord.gg/QFwWBWM2j")
+    end
+
+    -- Show warning UI first, then loading screen, then onboarding (if first launch) or main UI
+    showWarningUI(function()
+        showLoadingScreen(function()
+            if Config.FirstLaunch then
+                showOnboarding(buildMainUI)
+            else
+                buildMainUI()
+                -- Returning user: show animated welcome-back notification (UI stays open)
+                task.delay(0.5, function()
+                    showWelcomeBackNotification()
+                end)
+            end
+        end)
+    end)
+end
+
+init()
