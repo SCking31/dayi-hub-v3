@@ -3287,11 +3287,14 @@ local function setupBunnyHop()
         State.BunnyHopConnection = nil
     end
     if Config.BunnyHop then
-        local hum = getHumanoid(LocalPlayer)
-        if not hum then return end
-        State.BunnyHopConnection = hum.StateChanged:Connect(function(old, new)
-            if new == Enum.HumanoidStateType.Landed then
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        State.BunnyHopConnection = RunService.Heartbeat:Connect(function()
+            local hum = getHumanoid(LocalPlayer)
+            if not hum or hum.Health <= 0 then return end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                local state = hum:GetState()
+                if state == Enum.HumanoidStateType.Running
+                or state == Enum.HumanoidStateType.Landed
+                or state == Enum.HumanoidStateType.PlatformStanding then
                     hum:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
             end
