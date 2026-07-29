@@ -5883,7 +5883,7 @@ local function showLoadingScreen(onComplete)
             -- Stop spinner, show checkmark
             ml.spinnerCut:Destroy()
             ml.spinner:Destroy()
-            if ml.spinnerConn then ml.spinnerConn:Disconnect() end
+            if ml.spinnerConn then task.cancel(ml.spinnerConn) end
             ml.status.Text = "✓"
             TweenService:Create(ml.status, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130)}):Play()
             TweenService:Create(ml.nameLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
