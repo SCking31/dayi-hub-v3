@@ -1,25 +1,26 @@
 --==========================================================================
---  DAYI HUB — KEY SYSTEM
+--  DAYI HUB — KEY SYSTEM  (Premium Edition)
 --  Validate key, then load main script
 --==========================================================================
 
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 local CoreGui          = game:GetService("CoreGui")
+local RunService       = game:GetService("RunService")
 local LocalPlayer      = Players.LocalPlayer
 
 --==== VALID KEYS ====--
 local VALID_KEYS = {
-    ["DAYI-3OMPKJK48UX"]      = true,
-    ["DAYI-PREMIUM-2FDSEREUWQ"] = true,
-    ["Q"]                    = true,
+    ["DAYI-PREMIUM-2FDSEREUWQ"] = "premium",
+    ["DAYI-3OMPKJK48UX"]        = "free",
+    ["Q"]                       = "developer",
 }
 
 --==== MAIN SCRIPT LOADER ====--
 local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/SCking31/dayi-hub-v3/refs/heads/main/dayi-hub-v3"
 
-local function loadMainScript()
+local function loadMainScript(plan)
+    _G.DAYI_HUB_PLAN = plan or "free"
     local ok, result = pcall(function()
         return loadstring(game:HttpGet(MAIN_SCRIPT_URL))()
     end)
@@ -29,76 +30,60 @@ local function loadMainScript()
 end
 
 --==== COLORS ====--
-local Colors = {
-    Bg       = Color3.fromRGB(18, 18, 26),
-    Card     = Color3.fromRGB(24, 24, 36),
-    Panel    = Color3.fromRGB(30, 30, 44),
-    Border   = Color3.fromRGB(50, 50, 70),
-    Purple   = Color3.fromRGB(138, 99, 255),
-    PurpleDk = Color3.fromRGB(88, 60, 180),
-    PurpleBg = Color3.fromRGB(40, 30, 70),
-    Text     = Color3.fromRGB(240, 240, 250),
-    TextDim  = Color3.fromRGB(150, 150, 170),
-    Green    = Color3.fromRGB(80, 220, 120),
-    Red      = Color3.fromRGB(240, 80, 100),
-    Amber    = Color3.fromRGB(255, 180, 60),
+local C = {
+    Bg       = Color3.fromRGB(11, 11, 18),
+    Sidebar  = Color3.fromRGB(8, 8, 14),
+    Card     = Color3.fromRGB(18, 18, 28),
+    CardHov  = Color3.fromRGB(22, 22, 34),
+    Panel    = Color3.fromRGB(14, 14, 22),
+    Purple   = Color3.fromRGB(160, 60, 255),
+    PurpleDk = Color3.fromRGB(45, 10, 90),
+    PurpleBtn= Color3.fromRGB(130, 40, 220),
+    PurpleBg = Color3.fromRGB(60, 15, 110),
+    ActiveTab= Color3.fromRGB(24, 10, 48),
+    Green    = Color3.fromRGB(34, 197, 94),
+    Pink     = Color3.fromRGB(236, 72, 153),
+    Cyan     = Color3.fromRGB(0, 220, 220),
+    Amber    = Color3.fromRGB(251, 191, 36),
+    White    = Color3.fromRGB(255, 255, 255),
+    Text     = Color3.fromRGB(241, 245, 249),
+    TextDim  = Color3.fromRGB(148, 163, 184),
+    TextFaint= Color3.fromRGB(100, 110, 130),
+    Red      = Color3.fromRGB(255, 60, 60),
+    Border   = Color3.fromRGB(255, 255, 255),
+    InputBg  = Color3.fromRGB(16, 16, 24),
 }
 
 --==== HELPERS ====--
 local function makeFrame(parent, props)
     local f = Instance.new("Frame")
-    f.BackgroundColor3 = props.BackgroundColor3 or Color3.fromRGB(255, 255, 255)
-    f.BackgroundTransparency = props.BackgroundTransparency or 0
-    f.BorderSizePixel = props.BorderSizePixel or 0
-    f.Size = props.Size or UDim2.new(1, 0, 1, 0)
-    f.Position = props.Position or UDim2.new(0, 0, 0, 0)
     f.Parent = parent
+    for k, v in pairs(props) do f[k] = v end
     return f
 end
 
 local function makeTextLabel(parent, props)
-    local t = Instance.new("TextLabel")
-    t.BackgroundTransparency = props.BackgroundTransparency or 1
-    t.Size = props.Size or UDim2.new(1, 0, 1, 0)
-    t.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    t.Text = props.Text or ""
-    t.TextColor3 = props.TextColor3 or Color3.fromRGB(255, 255, 255)
-    t.TextSize = props.TextSize or 14
-    t.TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Center
-    t.TextYAlignment = props.TextYAlignment or Enum.TextYAlignment.Center
-    t.Font = props.Font or Enum.Font.SourceSans
-    t.Parent = parent
-    return t
+    local l = Instance.new("TextLabel")
+    l.Parent = parent
+    l.BackgroundTransparency = 1
+    for k, v in pairs(props) do l[k] = v end
+    return l
 end
 
 local function makeTextBox(parent, props)
     local tb = Instance.new("TextBox")
-    tb.BackgroundTransparency = props.BackgroundTransparency or 1
-    tb.Size = props.Size or UDim2.new(1, 0, 1, 0)
-    tb.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    tb.Text = props.Text or ""
-    tb.PlaceholderText = props.PlaceholderText or ""
-    tb.TextColor3 = props.TextColor3 or Color3.fromRGB(255, 255, 255)
-    tb.PlaceholderColor3 = props.PlaceholderColor3 or Color3.fromRGB(120, 120, 140)
-    tb.TextSize = props.TextSize or 14
-    tb.Font = props.Font or Enum.Font.SourceSans
-    tb.ClearTextOnFocus = false
-    tb.TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Center
     tb.Parent = parent
+    tb.BackgroundTransparency = 1
+    tb.ClearTextOnFocus = false
+    for k, v in pairs(props) do tb[k] = v end
     return tb
 end
 
 local function makeButton(parent, props)
     local b = Instance.new("TextButton")
-    b.BackgroundTransparency = props.BackgroundTransparency or 0
-    b.Size = props.Size or UDim2.new(1, 0, 0, 40)
-    b.Position = props.Position or UDim2.new(0, 0, 0, 0)
-    b.Text = props.Text or ""
-    b.TextColor3 = props.TextColor3 or Color3.fromRGB(255, 255, 255)
-    b.TextSize = props.TextSize or 14
-    b.Font = props.Font or Enum.Font.SourceSansBold
-    b.AutoButtonColor = true
     b.Parent = parent
+    b.AutoButtonColor = false
+    for k, v in pairs(props) do b[k] = v end
     return b
 end
 
@@ -106,19 +91,215 @@ local function makeUICorner(parent, radius)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, radius or 8)
     c.Parent = parent
+    return c
 end
 
 local function makeUIStroke(parent, color, thickness, transparency)
     local s = Instance.new("UIStroke")
-    s.Color = color or Color3.fromRGB(255, 255, 255)
+    s.Color = color or C.Border
     s.Thickness = thickness or 1
-    s.Transparency = transparency or 0
+    s.Transparency = transparency or 0.87
     s.Parent = parent
+    return s
+end
+
+local function makeUIGradient(parent, colorSeq, rot)
+    local g = Instance.new("UIGradient")
+    g.Color = colorSeq
+    g.Rotation = rot or 0
+    g.Parent = parent
+    return g
+end
+
+--==== AURORA BACKGROUND ====--
+local function createAurora(parent)
+    local auroraFolder = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ZIndex = 1,
+    })
+
+    local colors = { C.Purple, C.Pink, C.Cyan, C.PurpleBtn }
+    for i = 1, 4 do
+        local orb = makeFrame(auroraFolder, {
+            Size = UDim2.new(0, 300, 0, 300),
+            Position = UDim2.new(math.random(), -150, math.random(), -150),
+            BackgroundColor3 = colors[i],
+            BackgroundTransparency = 0.85,
+            ZIndex = 1,
+        })
+        makeUICorner(orb, 150)
+
+        local gradient = Instance.new("UIGradient")
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, colors[i]),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+        })
+        gradient.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.3),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        gradient.Parent = orb
+
+        local scale = Instance.new("UIScale")
+        scale.Scale = 1
+        scale.Parent = orb
+
+        local info = {
+            frame = orb,
+            scale = scale,
+            phase = math.random() * math.pi * 2,
+            speed = 0.003 + math.random() * 0.004,
+            driftX = (math.random() - 0.5) * 0.0008,
+            driftY = (math.random() - 0.5) * 0.0008,
+            x = orb.Position.X.Scale,
+            y = orb.Position.Y.Scale,
+        }
+
+        RunService.RenderStepped:Connect(function()
+            info.phase = info.phase + info.speed
+            info.x = info.x + info.driftX
+            info.y = info.y + info.driftY
+            if info.x > 1.3 then info.x = -0.3 end
+            if info.x < -0.3 then info.x = 1.3 end
+            if info.y > 1.3 then info.y = -0.3 end
+            if info.y < -0.3 then info.y = 1.3 end
+            info.frame.Position = UDim2.new(info.x, -150, info.y, -150)
+            info.scale.Scale = 1 + math.sin(info.phase) * 0.3
+            orb.BackgroundTransparency = 0.82 + math.sin(info.phase * 0.7) * 0.08
+        end)
+    end
+end
+
+--==== FLOATING PARTICLES ====--
+local function createParticles(parent, count)
+    count = count or 20
+    local particles = {}
+    for i = 1, count do
+        local p = Instance.new("Frame")
+        p.Name = "Particle" .. i
+        local hue = math.random()
+        if hue < 0.5 then
+            p.BackgroundColor3 = C.Purple
+        elseif hue < 0.8 then
+            p.BackgroundColor3 = C.Pink
+        else
+            p.BackgroundColor3 = C.Cyan
+        end
+        p.BackgroundTransparency = 0.7 + math.random() * 0.25
+        p.Size = UDim2.new(0, math.random(2, 5), 0, math.random(2, 5))
+        p.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        p.BorderSizePixel = 0
+        p.ZIndex = 2
+        p.Parent = parent
+        makeUICorner(p, 3)
+
+        local info = {
+            x = math.random(),
+            y = math.random(),
+            speed = 0.0006 + math.random() * 0.0014,
+            drift = (math.random() - 0.5) * 0.0006,
+            phase = math.random() * math.pi * 2,
+            frame = p,
+        }
+        particles[#particles + 1] = info
+    end
+
+    RunService.RenderStepped:Connect(function()
+        for _, info in ipairs(particles) do
+            info.phase = info.phase + info.speed
+            info.y = info.y - info.speed * 0.4
+            info.x = info.x + math.sin(info.phase) * info.drift
+            if info.y < -0.05 then
+                info.y = 1.05
+                info.x = math.random()
+            end
+            info.frame.Position = UDim2.new(info.x, 0, info.y, 0)
+        end
+    end)
+end
+
+--==== ROTATING CONIC GRADIENT BORDER ====--
+local function createConicBorder(parent, thickness)
+    local container = makeFrame(parent, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ZIndex = 4,
+    })
+
+    local segments = 36
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 0
+    stroke.Transparency = 1
+    stroke.Parent = container
+
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,    C.Purple),
+        ColorSequenceKeypoint.new(0.25, C.Pink),
+        ColorSequenceKeypoint.new(0.5,  C.Cyan),
+        ColorSequenceKeypoint.new(0.75, C.Purple),
+        ColorSequenceKeypoint.new(1,    C.PurpleBtn),
+    })
+    grad.Parent = stroke
+
+    local rotation = 0
+    RunService.RenderStepped:Connect(function()
+        rotation = (rotation + 1.5) % 360
+        grad.Rotation = rotation
+        stroke.Thickness = thickness or 2
+        stroke.Transparency = 0.1
+    end)
+
+    return container, stroke
+end
+
+--==== GLOW PULSE ====--
+local function startGlowPulse(stroke)
+    local t = 0
+    RunService.RenderStepped:Connect(function()
+        t = t + 0.025
+        stroke.Transparency = 0.1 + math.sin(t) * 0.15
+    end)
+end
+
+--==== SHIMMER EFFECT ====--
+local function createShimmer(parent)
+    local shimmer = makeFrame(parent, {
+        Size = UDim2.new(0, 80, 1, 0),
+        Position = UDim2.new(0, -80, 0, 0),
+        BackgroundColor3 = C.White,
+        BackgroundTransparency = 0.85,
+        ZIndex = 9,
+    })
+    makeUICorner(shimmer, 10)
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(255, 255, 255)),
+    })
+    grad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   1),
+        NumberSequenceKeypoint.new(0.5, 0.5),
+        NumberSequenceKeypoint.new(1,   1),
+    })
+    grad.Rotation = 0
+    grad.Parent = shimmer
+    return shimmer
+end
+
+local function playShimmer(shimmer, width)
+    local origWidth = width or 80
+    shimmer.Position = UDim2.new(0, -origWidth, 0, 0)
+    shimmer.Size = UDim2.new(0, origWidth, 1, 0)
+    TweenService:Create(shimmer, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+        Position = UDim2.new(1, 0, 0, 0),
+    }):Play()
 end
 
 --==== KEY UI ====--
 local function showKeyUI()
-    -- Remove old instances
     for _, gui in ipairs(CoreGui:GetChildren()) do
         if gui.Name == "DAYI_KEY_HUB" then gui:Destroy() end
     end
@@ -136,165 +317,453 @@ local function showKeyUI()
         keyGui.Parent = LocalPlayer.PlayerGui
     end
 
-    -- Dim background
+    --==== BACKGROUND ====--
     local dim = makeFrame(keyGui, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.5,
+        BackgroundTransparency = 1,
     })
+    makeUIGradient(dim, ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(5, 3, 15)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 6, 25)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(8, 4, 20)),
+    }), 90)
 
-    -- Card
+    createAurora(dim)
+    createParticles(dim, 22)
+
+    --==== CARD ====--
+    local cardW = 480
+    local cardH = 520
     local card = makeFrame(dim, {
-        Size = UDim2.new(0, 400, 0, 320),
-        Position = UDim2.new(0.5, -200, 0.5, -160),
-        BackgroundColor3 = Colors.Bg,
+        Size = UDim2.new(0, cardW, 0, cardH),
+        Position = UDim2.new(0.5, -cardW / 2, 0.5, -cardH / 2),
+        BackgroundColor3 = C.Bg,
+        BackgroundTransparency = 0.02,
+        ZIndex = 5,
     })
-    makeUICorner(card, 14)
-    makeUIStroke(card, Colors.Purple, 1.5, 0)
+    makeUICorner(card, 18)
+
+    local glass = makeFrame(card, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = C.White,
+        BackgroundTransparency = 0.94,
+        ZIndex = 5,
+    })
+    makeUICorner(glass, 18)
+
+    local _, borderStroke = createConicBorder(card, 2)
 
     local cardScale = Instance.new("UIScale")
-    cardScale.Scale = 0.85
+    cardScale.Scale = 0.5
     cardScale.Parent = card
-    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
-    -- Icon circle
-    local iconCircle = makeFrame(card, {
+    --==== HEADER GRADIENT ====--
+    local headerBar = makeFrame(card, {
+        Size = UDim2.new(1, 0, 0, 130),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = C.PurpleDk,
+        BackgroundTransparency = 0.2,
+        ZIndex = 6,
+    })
+    makeUICorner(headerBar, 18)
+    makeUIGradient(headerBar, ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   C.PurpleDk),
+        ColorSequenceKeypoint.new(0.5, C.PurpleBg),
+        ColorSequenceKeypoint.new(1,   C.PurpleDk),
+    }), 0)
+
+    local headerFade = makeFrame(headerBar, {
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 1, -40),
+        BackgroundColor3 = C.Bg,
+        ZIndex = 6,
+    })
+    makeUIGradient(headerFade, ColorSequence.new({
+        ColorSequenceKeypoint.new(0, C.PurpleDk),
+        ColorSequenceKeypoint.new(1, C.Bg),
+    }), 90)
+
+    --==== LOGO WITH ROTATING RING ====--
+    local logoRing = makeFrame(headerBar, {
+        Size = UDim2.new(0, 72, 0, 72),
+        Position = UDim2.new(0.5, -36, 0, 18),
+        BackgroundTransparency = 1,
+        ZIndex = 7,
+    })
+
+    local ringStroke = Instance.new("UIStroke")
+    ringStroke.Color = C.Pink
+    ringStroke.Thickness = 2
+    ringStroke.Transparency = 0.2
+    ringStroke.Parent = logoRing
+
+    local ringGrad = Instance.new("UIGradient")
+    ringGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,    C.Purple),
+        ColorSequenceKeypoint.new(0.33, C.Pink),
+        ColorSequenceKeypoint.new(0.66, C.Cyan),
+        ColorSequenceKeypoint.new(1,    C.Purple),
+    })
+    ringGrad.Parent = ringStroke
+
+    local ringRotation = 0
+    RunService.RenderStepped:Connect(function()
+        ringRotation = (ringRotation + 2) % 360
+        ringGrad.Rotation = ringRotation
+    end)
+
+    local logoCircle = makeFrame(logoRing, {
         Size = UDim2.new(0, 56, 0, 56),
-        Position = UDim2.new(0.5, -28, 0, 24),
-        BackgroundColor3 = Colors.PurpleBg,
+        Position = UDim2.new(0.5, -28, 0.5, -28),
+        BackgroundColor3 = C.Purple,
+        BackgroundTransparency = 0.05,
+        ZIndex = 8,
     })
-    makeUICorner(iconCircle, 28)
-    makeUIStroke(iconCircle, Colors.Purple, 1.5, 0)
-    makeTextLabel(iconCircle, {
-        Text = "🔑",
-        TextColor3 = Colors.Text,
-        TextSize = 26,
-        Font = Enum.Font.SourceSansBold,
+    makeUICorner(logoCircle, 28)
+    makeUIStroke(logoCircle, C.Purple, 2, 0)
+    startGlowPulse(makeUIStroke(logoCircle, C.Pink, 2, 0.3))
+
+    local logoScale = Instance.new("UIScale")
+    logoScale.Parent = logoCircle
+    local logoT = 0
+    RunService.RenderStepped:Connect(function()
+        logoT = logoT + 0.03
+        logoScale.Scale = 1 + math.sin(logoT) * 0.05
+    end)
+
+    makeTextLabel(logoCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = "D",
+        TextColor3 = C.White,
+        TextSize = 32,
+        Font = Enum.Font.GothamBold,
+        ZIndex = 9,
     })
 
-    -- Title
-    makeTextLabel(card, {
+    --==== TITLE ====--
+    makeTextLabel(headerBar, {
         Size = UDim2.new(1, 0, 0, 24),
-        Position = UDim2.new(0, 0, 0, 90),
+        Position = UDim2.new(0, 0, 0, 92),
         Text = "DAYI HUB",
-        TextColor3 = Colors.Text,
+        TextColor3 = C.White,
         TextSize = 22,
-        Font = Enum.Font.SourceSansBold,
+        Font = Enum.Font.GothamBold,
+        ZIndex = 8,
     })
 
-    -- Subtitle
+    --==== SUBTITLE ====--
     makeTextLabel(card, {
         Size = UDim2.new(1, 0, 0, 16),
-        Position = UDim2.new(0, 0, 0, 116),
-        Text = "Enter your key to continue",
-        TextColor3 = Colors.TextDim,
+        Position = UDim2.new(0, 0, 0, 142),
+        Text = "Secure Access Required",
+        TextColor3 = C.Purple,
         TextSize = 13,
-        Font = Enum.Font.SourceSans,
+        Font = Enum.Font.GothamMedium,
+        ZIndex = 7,
     })
 
-    -- Input box background
-    local inputBg = makeFrame(card, {
-        Size = UDim2.new(1, -40, 0, 42),
-        Position = UDim2.new(0, 20, 0, 144),
-        BackgroundColor3 = Colors.Panel,
+    --==== STATUS BADGE ====--
+    local statusBadge = makeFrame(card, {
+        Size = UDim2.new(0, 120, 0, 26),
+        Position = UDim2.new(0.5, -60, 0, 164),
+        BackgroundColor3 = C.ActiveTab,
+        BackgroundTransparency = 0.15,
+        ZIndex = 7,
     })
-    makeUICorner(inputBg, 8)
-    makeUIStroke(inputBg, Colors.Border, 1, 0.5)
+    makeUICorner(statusBadge, 13)
+    makeUIStroke(statusBadge, C.Purple, 1, 0.2)
+
+    local statusDot = makeFrame(statusBadge, {
+        Size = UDim2.new(0, 7, 0, 7),
+        Position = UDim2.new(0, 12, 0.5, -3.5),
+        BackgroundColor3 = C.Green,
+        ZIndex = 8,
+    })
+    makeUICorner(statusDot, 3.5)
+
+    local dotScale = Instance.new("UIScale")
+    dotScale.Parent = statusDot
+    local dotT = 0
+    RunService.RenderStepped:Connect(function()
+        dotT = dotT + 0.04
+        dotScale.Scale = 1 + math.sin(dotT) * 0.25
+    end)
+
+    makeTextLabel(statusBadge, {
+        Size = UDim2.new(1, -28, 1, 0),
+        Position = UDim2.new(0, 26, 0, 0),
+        Text = "ONLINE",
+        TextColor3 = C.Green,
+        TextSize = 10,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 8,
+    })
+
+    --==== INPUT SECTION ====--
+    makeTextLabel(card, {
+        Size = UDim2.new(1, -56, 0, 14),
+        Position = UDim2.new(0, 28, 0, 206),
+        Text = "ACCESS KEY",
+        TextColor3 = C.TextDim,
+        TextSize = 10,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 7,
+    })
+
+    local inputBg = makeFrame(card, {
+        Size = UDim2.new(1, -56, 0, 52),
+        Position = UDim2.new(0, 28, 0, 224),
+        BackgroundColor3 = C.InputBg,
+        BackgroundTransparency = 0.03,
+        ZIndex = 7,
+    })
+    makeUICorner(inputBg, 12)
+    local inputStroke = makeUIStroke(inputBg, C.Border, 1, 0.85)
+
+    local inputShimmer = createShimmer(inputBg)
+
+    makeTextLabel(inputBg, {
+        Size = UDim2.new(0, 36, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        Text = "🔑",
+        TextColor3 = C.Purple,
+        TextSize = 18,
+        Font = Enum.Font.SourceSans,
+        ZIndex = 8,
+    })
 
     local keyInput = makeTextBox(inputBg, {
-        Size = UDim2.new(1, -20, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
-        PlaceholderText = "DAYI-XXXX-XXXX",
-        TextColor3 = Colors.Text,
+        Size = UDim2.new(1, -56, 1, 0),
+        Position = UDim2.new(0, 44, 0, 0),
+        PlaceholderText = "Enter your access key...",
+        TextColor3 = C.Text,
+        PlaceholderColor3 = C.TextFaint,
         TextSize = 15,
-        Font = Enum.Font.SourceSans,
-        TextXAlignment = Enum.TextXAlignment.Center,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 8,
     })
 
-    -- Status label
+    keyInput.Focused:Connect(function()
+        TweenService:Create(inputStroke, TweenInfo.new(0.2), {Color = C.Purple, Transparency = 0, Thickness = 2}):Play()
+        playShimmer(inputShimmer, 60)
+    end)
+    keyInput.FocusLost:Connect(function()
+        TweenService:Create(inputStroke, TweenInfo.new(0.2), {Color = C.Border, Transparency = 0.85, Thickness = 1}):Play()
+    end)
+
+    --==== STATUS LABEL ====--
     local statusLabel = makeTextLabel(card, {
-        Size = UDim2.new(1, -40, 0, 16),
-        Position = UDim2.new(0, 20, 0, 192),
+        Size = UDim2.new(1, -56, 0, 18),
+        Position = UDim2.new(0, 28, 0, 286),
         Text = "",
-        TextColor3 = Colors.TextDim,
+        TextColor3 = C.TextDim,
         TextSize = 12,
-        Font = Enum.Font.SourceSans,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = 7,
     })
 
-    -- Submit button
+    --==== PROGRESS BAR ====--
+    local progressBg = makeFrame(card, {
+        Size = UDim2.new(1, -56, 0, 4),
+        Position = UDim2.new(0, 28, 0, 310),
+        BackgroundColor3 = C.Panel,
+        BackgroundTransparency = 0.1,
+        Visible = false,
+        ZIndex = 7,
+    })
+    makeUICorner(progressBg, 2)
+
+    local progressFill = makeFrame(progressBg, {
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = C.Purple,
+        ZIndex = 8,
+    })
+    makeUICorner(progressFill, 2)
+    makeUIGradient(progressFill, ColorSequence.new({
+        ColorSequenceKeypoint.new(0, C.Purple),
+        ColorSequenceKeypoint.new(0.5, C.Pink),
+        ColorSequenceKeypoint.new(1, C.Cyan),
+    }), 0)
+
+    --==== SUBMIT BUTTON ====--
     local submitBtn = makeButton(card, {
-        Size = UDim2.new(1, -40, 0, 40),
-        Position = UDim2.new(0, 20, 0, 216),
-        BackgroundColor3 = Colors.Purple,
-        Text = "Continue",
-        TextColor3 = Colors.Text,
+        Size = UDim2.new(1, -56, 0, 48),
+        Position = UDim2.new(0, 28, 0, 326),
+        BackgroundColor3 = C.PurpleBtn,
+        Text = "CONTINUE",
+        TextColor3 = C.White,
         TextSize = 15,
+        Font = Enum.Font.GothamBold,
+        ZIndex = 7,
     })
-    makeUICorner(submitBtn, 8)
+    makeUICorner(submitBtn, 12)
+    makeUIGradient(submitBtn, ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   C.PurpleBtn),
+        ColorSequenceKeypoint.new(0.5, C.Purple),
+        ColorSequenceKeypoint.new(1,   C.PurpleBtn),
+    }), 0)
+    makeUIStroke(submitBtn, C.Pink, 1, 0.3)
 
-    -- Get key link
+    local btnShimmer = createShimmer(submitBtn)
+
+    local submitGradient = submitBtn:FindFirstChild("UIGradient")
+    submitBtn.MouseEnter:Connect(function()
+        TweenService:Create(submitBtn, TweenInfo.new(0.15), {
+            Size = UDim2.new(1, -52, 0, 50),
+            Position = UDim2.new(0, 26, 0, 325),
+        }):Play()
+        if submitGradient then
+            TweenService:Create(submitGradient, TweenInfo.new(0.3), {Rotation = 180}):Play()
+        end
+        playShimmer(btnShimmer, 100)
+    end)
+    submitBtn.MouseLeave:Connect(function()
+        TweenService:Create(submitBtn, TweenInfo.new(0.15), {
+            Size = UDim2.new(1, -56, 0, 48),
+            Position = UDim2.new(0, 28, 0, 326),
+        }):Play()
+        if submitGradient then
+            TweenService:Create(submitGradient, TweenInfo.new(0.3), {Rotation = 0}):Play()
+        end
+    end)
+
+    --==== GET KEY LINK ====--
     local getKeyBtn = makeButton(card, {
-        Size = UDim2.new(1, -40, 0, 28),
-        Position = UDim2.new(0, 20, 0, 268),
+        Size = UDim2.new(1, -56, 0, 32),
+        Position = UDim2.new(0, 28, 0, 384),
         BackgroundTransparency = 1,
-        Text = "Get Key",
-        TextColor3 = Colors.Purple,
+        Text = "Don't have a key? Get one here",
+        TextColor3 = C.Purple,
         TextSize = 12,
+        Font = Enum.Font.GothamMedium,
+        ZIndex = 7,
     })
+
+    getKeyBtn.MouseEnter:Connect(function()
+        TweenService:Create(getKeyBtn, TweenInfo.new(0.15), {TextColor3 = C.Pink}):Play()
+    end)
+    getKeyBtn.MouseLeave:Connect(function()
+        TweenService:Create(getKeyBtn, TweenInfo.new(0.15), {TextColor3 = C.Purple}):Play()
+    end)
+
+    --==== FOOTER ====--
+    local footerLine = makeFrame(card, {
+        Size = UDim2.new(1, -56, 0, 1),
+        Position = UDim2.new(0, 28, 0, 426),
+        BackgroundColor3 = C.Purple,
+        BackgroundTransparency = 0.85,
+        ZIndex = 7,
+    })
+
+    makeTextLabel(card, {
+        Size = UDim2.new(1, 0, 0, 14),
+        Position = UDim2.new(0, 0, 0, 438),
+        Text = "v3.0  •  Protected by DayiHub Security",
+        TextColor3 = C.TextFaint,
+        TextSize = 10,
+        Font = Enum.Font.Gotham,
+        ZIndex = 7,
+    })
+
+    --==== ENTRANCE ANIMATIONS ====--
+    TweenService:Create(dim, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.25}):Play()
+    TweenService:Create(cardScale, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
     --==== LOGIC ====--
     local submitted = false
 
     local function validateKey(key)
-        if key and VALID_KEYS[key:upper()] then
-            return true
+        if key then
+            local upper = key:upper()
+            return VALID_KEYS[upper]
         end
-        return false
+        return nil
+    end
+
+    local function shakeFrame(frame, intensity, count)
+        local origPos = frame.Position
+        for i = 1, count or 3 do
+            TweenService:Create(frame, TweenInfo.new(0.05), {
+                Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + (intensity or 8), origPos.Y.Scale, origPos.Y.Offset),
+            }):Play()
+            task.wait(0.05)
+            TweenService:Create(frame, TweenInfo.new(0.05), {
+                Position = UDim2.new(origPos.X.Scale, origPos.X.Offset - (intensity or 8), origPos.Y.Scale, origPos.Y.Offset),
+            }):Play()
+            task.wait(0.05)
+        end
+        TweenService:Create(frame, TweenInfo.new(0.05), {Position = origPos}):Play()
     end
 
     local function handleSubmit()
         if submitted then return end
         local key = keyInput.Text
         if key == nil or key == "" then
-            statusLabel.Text = "Please enter a key."
-            statusLabel.TextColor3 = Colors.Amber
+            statusLabel.Text = "⚠  Please enter a key."
+            statusLabel.TextColor3 = C.Amber
+            shakeFrame(inputBg, 6, 2)
             return
         end
 
         submitted = true
-        statusLabel.Text = "Checking key..."
-        statusLabel.TextColor3 = Colors.TextDim
+        statusLabel.Text = "Verifying key..."
+        statusLabel.TextColor3 = C.Purple
+        progressBg.Visible = true
+        progressFill.Size = UDim2.new(0, 0, 1, 0)
 
-        task.delay(0.6, function()
-            if validateKey(key) then
-                statusLabel.Text = "Key accepted! Loading..."
-                statusLabel.TextColor3 = Colors.Green
+        TweenService:Create(progressFill, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+            Size = UDim2.new(1, 0, 1, 0),
+        }):Play()
 
-                -- Success animation
-                TweenService:Create(submitBtn, TweenInfo.new(0.2), {BackgroundColor3 = Colors.Green}):Play()
+        local dots = 0
+        local dotActive = true
+        task.spawn(function()
+            while dotActive do
+                dots = (dots + 1) % 4
+                statusLabel.Text = "Verifying key" .. string.rep(".", dots)
+                task.wait(0.3)
+            end
+        end)
+
+        task.delay(0.9, function()
+            dotActive = false
+            local plan = validateKey(key)
+            if plan then
+                local planLabel = plan == "premium" and "Premium" or (plan == "developer" and "Developer" or "Free")
+                statusLabel.Text = "✓  Key accepted! (" .. planLabel .. " plan) Loading..."
+                statusLabel.TextColor3 = C.Green
+
+                TweenService:Create(submitBtn, TweenInfo.new(0.2), {BackgroundColor3 = C.Green}):Play()
+                TweenService:Create(borderStroke, TweenInfo.new(0.3), {Color = C.Green, Thickness = 3}):Play()
+                TweenService:Create(progressFill, TweenInfo.new(0.2), {BackgroundColor3 = C.Green}):Play()
 
                 task.delay(0.8, function()
-                    -- Fade out card
-                    TweenService:Create(cardScale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
-                    TweenService:Create(dim, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-                    task.wait(0.3)
+                    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.8}):Play()
+                    TweenService:Create(dim, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+                    task.wait(0.35)
                     keyGui:Destroy()
-                    -- Load main script
-                    loadMainScript()
+                    loadMainScript(plan)
                 end)
             else
-                statusLabel.Text = "Invalid key. Try again."
-                statusLabel.TextColor3 = Colors.Red
-                -- Shake animation
-                local origPos = card.Position
-                for i = 1, 3 do
-                    TweenService:Create(card, TweenInfo.new(0.05), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + 8, origPos.Y.Scale, origPos.Y.Offset)}):Play()
-                    task.wait(0.05)
-                    TweenService:Create(card, TweenInfo.new(0.05), {Position = UDim2.new(origPos.X.Scale, origPos.X.Offset - 8, origPos.Y.Scale, origPos.Y.Offset)}):Play()
-                    task.wait(0.05)
-                end
-                TweenService:Create(card, TweenInfo.new(0.05), {Position = origPos}):Play()
                 submitted = false
+                progressBg.Visible = false
+                statusLabel.Text = "✗  Invalid key. Try again."
+                statusLabel.TextColor3 = C.Red
+
+                TweenService:Create(borderStroke, TweenInfo.new(0.1), {Color = C.Red, Thickness = 3}):Play()
+                task.delay(0.3, function()
+                    TweenService:Create(borderStroke, TweenInfo.new(0.3), {Color = C.Purple, Thickness = 2}):Play()
+                end)
+
+                shakeFrame(card, 10, 3)
+
+                keyInput.Text = ""
+                keyInput:CaptureFocus()
             end
         end)
     end
@@ -305,12 +774,11 @@ local function showKeyUI()
     end)
 
     getKeyBtn.MouseButton1Click:Connect(function()
-        statusLabel.Text = "Check Discord for keys: discord.gg/QFwWBWM2j"
-        statusLabel.TextColor3 = Colors.Purple
+        statusLabel.Text = "Join Discord for keys: discord.gg/QFwWBWM2j"
+        statusLabel.TextColor3 = C.Purple
     end)
 
-    -- Auto-focus input
-    task.wait(0.4)
+    task.wait(0.6)
     keyInput:CaptureFocus()
 end
 
