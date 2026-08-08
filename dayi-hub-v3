@@ -32,6 +32,7 @@ local Config = {
     UnlimitedZoom      = false,
     FPSBooster         = false,
     VFXRemover         = false,
+    ParticleRemover     = false,
     TextureOptimizer   = false,
     ShadowRemover      = false,
     LightOptimizer     = false,
@@ -146,6 +147,7 @@ local State = {
     WaterBackup          = {},
     GrassBackup         = {},
     VFXConnection       = nil,
+    ParticleConnection  = nil,
     UIVisible           = true,
 }
 
@@ -2391,6 +2393,7 @@ local function buildGraphicsPage()
         { name = "Unlimited Zoom",    desc = "Remove Roblox zoom limit.",   icon = "🔍", locked = false, default = false, key = "UnlimitedZoom" },
         { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = false, key = "FPSBooster" },
         { name = "VFX Remover",        desc = "Remove all visual effects.",  icon = "📦", locked = false, default = false, key = "VFXRemover" },
+        { name = "Particle Remover",   desc = "Remove all particles.",       icon = "✨", locked = false, default = false, key = "ParticleRemover" },
         -- { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = true,  default = false, key = "TextureOptimizer" },
         { name = "Shadow Remover",     desc = "Remove all shadows.",          icon = "☀️", locked = true,  default = false, key = "ShadowRemover" },
         { name = "Light Optimizer",     desc = "Optimize game lighting.",      icon = "💡", locked = true,  default = false, key = "LightOptimizer" },
@@ -2790,10 +2793,25 @@ local function buildChangelogPage()
 
     local updates = {
         {
-            version = "v10.2",
-            date = "2025-07-28",
+            version = "v10.3",
+            date = "2025-08-08",
             badge = "NEW",
             badgeColor = Colors.Green,
+            sections = {
+                { type = "added", items = {
+                    "Particle Remover toggle added to Graphics page",
+                    "beren added to Credits as Best Waifu",
+                }},
+                { type = "fixed", items = {
+                    "Loading modules screen no longer hangs (spinner task.cancel fix)",
+                    "Particle thread cleanup fixed (task.cancel replaces Disconnect)",
+                }},
+            },
+        },
+        {
+            version = "v10.2",
+            date = "2025-07-28",
+            badge = nil,
             sections = {
                 { type = "added", items = {
                     "Camera FOV slider in Settings (1-120)",
@@ -3073,9 +3091,12 @@ local function buildCreditsPage()
         { emoji = "👑", name = "syfix", role = "Owner & Lead Developer", accent = Colors.Purple },
         { emoji = "⚙️", name = "syfix", role = "UI Designer",            accent = Colors.Cyan },
         { emoji = "🎨", name = "syfix", role = "Script Developer",       accent = Colors.Pink },
+        { emoji = "🌸", name = "beren", role = "Best Waifu 💕",          accent = Colors.Pink },
     }
 
     for _, dev in ipairs(devCards) do
+        local isWaifu = (dev.role == "Best Waifu 💕")
+
         local card = makeFrame(scroll, {
             Size = UDim2.new(1, 0, 0, 64),
             BackgroundColor3 = Colors.Card,
@@ -3091,6 +3112,47 @@ local function buildCreditsPage()
         makeUICorner(accentBar, 2)
         makeUIGradient(accentBar, dev.accent, Color3.fromRGB(dev.accent.R * 180, dev.accent.G * 180, dev.accent.B * 180), 180)
 
+        -- Waifu: glowing aura behind card
+        local waifuGlow = nil
+        if isWaifu then
+            waifuGlow = makeFrame(card, {
+                Size = UDim2.new(1, 8, 1, 8),
+                Position = UDim2.new(0, -4, 0, -4),
+                BackgroundColor3 = Colors.Pink,
+                BackgroundTransparency = 0.9,
+                BorderSizePixel = 0,
+                ZIndex = 0,
+            })
+            makeUICorner(waifuGlow, 14)
+            local glowScale = Instance.new("UIScale")
+            glowScale.Parent = waifuGlow
+            task.spawn(function()
+                while waifuGlow.Parent do
+                    TweenService:Create(waifuGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.75}):Play()
+                    TweenService:Create(glowScale, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.03}):Play()
+                    task.wait(2)
+                    TweenService:Create(waifuGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.92}):Play()
+                    TweenService:Create(glowScale, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1}):Play()
+                    task.wait(2)
+                end
+            end)
+        end
+
+        -- Waifu: floating bounce animation
+        local cardScale = Instance.new("UIScale")
+        cardScale.Scale = 1
+        cardScale.Parent = card
+        if isWaifu then
+            task.spawn(function()
+                while card.Parent do
+                    TweenService:Create(cardScale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.015}):Play()
+                    task.wait(1.5)
+                    TweenService:Create(cardScale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1}):Play()
+                    task.wait(1.5)
+                end
+            end)
+        end
+
         local iconCircle = makeFrame(card, {
             Size = UDim2.new(0, 44, 0, 44),
             Position = UDim2.new(0, 14, 0.5, -22),
@@ -3099,7 +3161,29 @@ local function buildCreditsPage()
         makeUICorner(iconCircle, 22)
         makeUIGradient(iconCircle, Color3.fromRGB(40, 36, 52), Color3.fromRGB(28, 26, 38), 135)
         makeUIStroke(iconCircle, dev.accent, 1.5, 0.3)
-        makeTextLabel(iconCircle, {
+
+        -- Waifu: pulsing icon glow ring
+        if isWaifu then
+            local iconGlow = makeFrame(card, {
+                Size = UDim2.new(0, 56, 0, 56),
+                Position = UDim2.new(0, 8, 0.5, -28),
+                BackgroundColor3 = Colors.Pink,
+                BackgroundTransparency = 0.85,
+                BorderSizePixel = 0,
+                ZIndex = 0,
+            })
+            makeUICorner(iconGlow, 28)
+            task.spawn(function()
+                while iconGlow.Parent do
+                    TweenService:Create(iconGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.6, Size = UDim2.new(0, 64, 0, 64), Position = UDim2.new(0, 4, 0.5, -32)}):Play()
+                    task.wait(1.5)
+                    TweenService:Create(iconGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.9, Size = UDim2.new(0, 56, 0, 56), Position = UDim2.new(0, 8, 0.5, -28)}):Play()
+                    task.wait(1.5)
+                end
+            end)
+        end
+
+        local iconLabel = makeTextLabel(iconCircle, {
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             Text = dev.emoji,
@@ -3107,6 +3191,19 @@ local function buildCreditsPage()
             TextSize = 22,
             Font = Enum.Font.SourceSansBold,
         })
+
+        -- Waifu: icon emoji gentle bounce
+        if isWaifu then
+            task.spawn(function()
+                while iconLabel.Parent do
+                    TweenService:Create(iconLabel, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, -2), TextSize = 24}):Play()
+                    task.wait(1.2)
+                    TweenService:Create(iconLabel, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, 0), TextSize = 22}):Play()
+                    task.wait(1.2)
+                end
+            end)
+        end
+
         makeTextLabel(card, {
             Size = UDim2.new(1, -70, 0, 20),
             Position = UDim2.new(0, 68, 0, 14),
@@ -3117,7 +3214,8 @@ local function buildCreditsPage()
             TextXAlignment = Enum.TextXAlignment.Left,
             Font = Enum.Font.SourceSansBold,
         })
-        makeTextLabel(card, {
+
+        local roleLabel = makeTextLabel(card, {
             Size = UDim2.new(1, -70, 0, 16),
             Position = UDim2.new(0, 68, 0, 36),
             BackgroundTransparency = 1,
@@ -3127,6 +3225,50 @@ local function buildCreditsPage()
             TextXAlignment = Enum.TextXAlignment.Left,
             Font = Enum.Font.SourceSans,
         })
+
+        -- Waifu: role text shimmer (text color pulses)
+        if isWaifu then
+            task.spawn(function()
+                local bright = Color3.fromRGB(255, 180, 220)
+                while roleLabel.Parent do
+                    TweenService:Create(roleLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = bright}):Play()
+                    task.wait(1.5)
+                    TweenService:Create(roleLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = dev.accent}):Play()
+                    task.wait(1.5)
+                end
+            end)
+        end
+
+        -- Waifu: sparkle particles around the card
+        if isWaifu then
+            for i = 1, 5 do
+                local sparkle = makeTextLabel(card, {
+                    Size = UDim2.new(0, 14, 0, 14),
+                    Position = UDim2.new(1, -20 - (i * 12), 0, 10 + (i * 8)),
+                    BackgroundTransparency = 1,
+                    Text = "✨",
+                    TextColor3 = Colors.Pink,
+                    TextSize = 12,
+                    Font = Enum.Font.SourceSansBold,
+                    ZIndex = 5,
+                })
+                task.spawn(function()
+                    while sparkle.Parent do
+                        local randX = math.random(-10, 10)
+                        local randY = math.random(-5, 15)
+                        TweenService:Create(sparkle, TweenInfo.new(1 + math.random(), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                            Position = UDim2.new(1, -20 - (i * 12) + randX, 0, 10 + (i * 8) + randY),
+                            TextTransparency = 0,
+                        }):Play()
+                        task.wait(1 + math.random())
+                        TweenService:Create(sparkle, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                            TextTransparency = 1,
+                        }):Play()
+                        task.wait(0.8 + math.random() * 0.5)
+                    end
+                end)
+            end
+        end
     end
 
     -- Discord card
@@ -3281,6 +3423,48 @@ local function applyVFXRemover()
             end
             for _, v in ipairs(Workspace:GetDescendants()) do
                 restoreVFX(v)
+            end
+        end
+    end)
+end
+
+local function destroyParticles(obj)
+    pcall(function()
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+            if not State.ParticleBackup then State.ParticleBackup = {} end
+            State.ParticleBackup[obj] = obj.Enabled
+            obj.Enabled = false
+        end
+    end)
+end
+
+local function restoreParticles(obj)
+    pcall(function()
+        if (obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")) and State.ParticleBackup then
+            obj.Enabled = State.ParticleBackup[obj] or true
+            State.ParticleBackup[obj] = nil
+        end
+    end)
+end
+
+local function applyParticleRemover()
+    pcall(function()
+        if Config.ParticleRemover then
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                destroyParticles(v)
+            end
+            if not State.ParticleConnection then
+                State.ParticleConnection = Workspace.DescendantAdded:Connect(function(obj)
+                    task.defer(destroyParticles, obj)
+                end)
+            end
+        else
+            if State.ParticleConnection then
+                State.ParticleConnection:Disconnect()
+                State.ParticleConnection = nil
+            end
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                restoreParticles(v)
             end
         end
     end)
@@ -4211,6 +4395,7 @@ function DayiHub.SetToggle(name, value)
     if name == "UnlimitedZoom" then applyUnlimitedZoom()
     elseif name == "FPSBooster" then applyFPSBooster()
     elseif name == "VFXRemover" then applyVFXRemover()
+    elseif name == "ParticleRemover" then applyParticleRemover()
     elseif name == "TextureOptimizer" then applyTextureOptimizer()
     elseif name == "ShadowRemover" then applyShadowRemover()
     elseif name == "LightOptimizer" then applyLightOptimizer()
@@ -5061,202 +5246,478 @@ local function showOnboarding(onComplete)
         obGui.Parent = LocalPlayer.PlayerGui
     end
 
+    -- Full-screen dim with blur feel
     local dim = makeFrame(obGui, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.4,
+        BackgroundTransparency = 0.25,
         BorderSizePixel = 0,
     })
+    TweenService:Create(dim, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.55}):Play()
 
+    -- Aurora glow background (animated)
+    local aurora1 = makeFrame(dim, {
+        Size = UDim2.new(0, 600, 0, 600),
+        Position = UDim2.new(0.5, -300, 0.5, -300),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.92,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+    })
+    makeUICorner(aurora1, 300)
+    local aurora1Grad = Instance.new("UIGradient")
+    aurora1Grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 20, 120)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 5, 50)),
+    })
+    aurora1Grad.Parent = aurora1
+    local aurora1Scale = Instance.new("UIScale")
+    aurora1Scale.Parent = aurora1
+    task.spawn(function()
+        while aurora1.Parent do
+            TweenService:Create(aurora1Scale, TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.15}):Play()
+            task.wait(4)
+            TweenService:Create(aurora1Scale, TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 0.85}):Play()
+            task.wait(4)
+        end
+    end)
+
+    local aurora2 = makeFrame(dim, {
+        Size = UDim2.new(0, 400, 0, 400),
+        Position = UDim2.new(0.55, -200, 0.4, -200),
+        BackgroundColor3 = Colors.Pink,
+        BackgroundTransparency = 0.94,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+    })
+    makeUICorner(aurora2, 200)
+    local aurora2Scale = Instance.new("UIScale")
+    aurora2Scale.Parent = aurora2
+    task.spawn(function()
+        while aurora2.Parent do
+            TweenService:Create(aurora2Scale, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.2}):Play()
+            task.wait(3)
+            TweenService:Create(aurora2Scale, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 0.8}):Play()
+            task.wait(3)
+        end
+    end)
+
+    -- Floating particles
+    local particles = {}
+    for i = 1, 14 do
+        local p = makeFrame(dim, {
+            Size = UDim2.new(0, 3 + (i % 3) * 2, 0, 3 + (i % 3) * 2),
+            Position = UDim2.new(0, (i * 53) % 90 + 5, 0, (i * 37) % 80 + 5),
+            BackgroundColor3 = (i % 4 == 0 and Colors.Purple) or (i % 4 == 1 and Colors.Pink) or (i % 4 == 2 and Colors.Cyan) or Colors.PurpleBright,
+            BackgroundTransparency = 0.6,
+            BorderSizePixel = 0,
+            ZIndex = 2,
+        })
+        makeUICorner(p, 10)
+        particles[i] = p
+        task.spawn(function()
+            local baseY = p.Position.Y.Offset
+            local baseX = p.Position.X.Offset
+            while p.Parent do
+                TweenService:Create(p, TweenInfo.new(3 + (i % 3), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    Position = UDim2.new(0, baseX + 15, 0, baseY - 30),
+                    BackgroundTransparency = 0.3,
+                }):Play()
+                task.wait(3 + (i % 3))
+                TweenService:Create(p, TweenInfo.new(3 + (i % 3), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    Position = UDim2.new(0, baseX, 0, baseY),
+                    BackgroundTransparency = 0.6,
+                }):Play()
+                task.wait(3 + (i % 3))
+            end
+        end)
+    end
+
+    -- Main card
     local card = makeFrame(dim, {
-        Size = UDim2.new(0, 480, 0, 360),
-        Position = UDim2.new(0.5, -240, 0.5, -180),
+        Size = UDim2.new(0, 500, 0, 380),
+        Position = UDim2.new(0.5, -250, 0.5, -190),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
+        ZIndex = 10,
     })
-    makeUICorner(card, 14)
+    makeUICorner(card, 18)
+    local cardGrad = Instance.new("UIGradient")
+    cardGrad.Color = ColorSequence.new(Colors.BgGrad1, Colors.BgGrad2)
+    cardGrad.Rotation = 145
+    cardGrad.Parent = card
     makeUIStroke(card, Colors.Purple, 1.5, 0)
 
     local cardScale = Instance.new("UIScale")
-    cardScale.Scale = 0.85
+    cardScale.Scale = 0.8
     cardScale.Parent = card
-    TweenService:Create(cardScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+    TweenService:Create(cardScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
-    -- Step dots (progress indicator)
-    local dotsFrame = makeFrame(card, {
-        Size = UDim2.new(0, 120, 0, 10),
-        Position = UDim2.new(0.5, -60, 0, 24),
+    -- Top progress bar
+    local progressBg = makeFrame(card, {
+        Size = UDim2.new(1, 0, 0, 3),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 50),
+        BorderSizePixel = 0,
+    })
+    makeUICorner(progressBg, 2)
+    local progressFill = makeFrame(progressBg, {
+        Size = UDim2.new(0, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Colors.Purple,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(progressFill, 2)
+    makeUIGradient(progressFill, Colors.Purple, Colors.PurpleBright, 0)
+
+    -- Step counter
+    local stepCounter = makeTextLabel(card, {
+        Size = UDim2.new(0, 60, 0, 16),
+        Position = UDim2.new(1, -70, 0, 14),
+        BackgroundTransparency = 1,
+        Text = "1 / 6",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        Font = Enum.Font.SourceSansBold,
+        TextXAlignment = Enum.TextXAlignment.Right,
+    })
+
+    -- Icon area with spinning ring + glow
+    local iconContainer = makeFrame(card, {
+        Size = UDim2.new(0, 96, 0, 96),
+        Position = UDim2.new(0.5, -48, 0, 42),
         BackgroundTransparency = 1,
     })
-    local dots = {}
-    for i = 1, 4 do
-        local dot = makeFrame(dotsFrame, {
-            Size = UDim2.new(0, 10, 0, 10),
-            Position = UDim2.new(0, (i - 1) * 30, 0, 0),
-            BackgroundColor3 = Color3.fromRGB(50, 50, 60),
-        })
-        makeUICorner(dot, 5)
-        dots[i] = dot
-    end
 
-    -- Icon area (emoji)
-    local iconLabel = makeTextLabel(card, {
-        Size = UDim2.new(1, 0, 0, 60),
-        Position = UDim2.new(0, 0, 0, 50),
+    -- Pulsing glow behind icon
+    local iconGlow = makeFrame(iconContainer, {
+        Size = UDim2.new(0, 120, 0, 120),
+        Position = UDim2.new(0.5, -60, 0.5, -60),
+        BackgroundColor3 = Colors.Purple,
+        BackgroundTransparency = 0.85,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(iconGlow, 60)
+    task.spawn(function()
+        while iconGlow.Parent do
+            TweenService:Create(iconGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.7, Size = UDim2.new(0, 135, 0, 135), Position = UDim2.new(0.5, -67, 0.5, -67)}):Play()
+            task.wait(2)
+            TweenService:Create(iconGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.9, Size = UDim2.new(0, 120, 0, 120), Position = UDim2.new(0.5, -60, 0.5, -60)}):Play()
+            task.wait(2)
+        end
+    end)
+
+    -- Spinning gradient ring
+    local spinRing = makeFrame(iconContainer, {
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "👋",
+    })
+    makeUICorner(spinRing, 48)
+    local ringStroke = Instance.new("UIStroke")
+    ringStroke.Color = Colors.Purple
+    ringStroke.Thickness = 2
+    ringStroke.Transparency = 0
+    ringStroke.Parent = spinRing
+    local ringGrad = Instance.new("UIGradient")
+    ringGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(168, 85, 247)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(34, 211, 238)),
+    })
+    ringGrad.Parent = spinRing
+    task.spawn(function()
+        while spinRing.Parent do
+            TweenService:Create(ringGrad, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = 360}):Play()
+            task.wait(3)
+        end
+    end)
+
+    -- Inner ring
+    local innerRing = makeFrame(iconContainer, {
+        Size = UDim2.new(0, 84, 0, 84),
+        Position = UDim2.new(0.5, -42, 0.5, -42),
+        BackgroundTransparency = 1,
+    })
+    makeUICorner(innerRing, 42)
+    makeUIStroke(innerRing, Colors.Purple, 1, 0.5)
+
+    -- Icon emoji
+    local iconLabel = makeTextLabel(iconContainer, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
         TextColor3 = Colors.Text,
-        TextSize = 44,
+        TextSize = 40,
         Font = Enum.Font.SourceSansBold,
     })
 
     -- Title
     local titleLabel = makeTextLabel(card, {
-        Size = UDim2.new(1, -40, 0, 30),
-        Position = UDim2.new(0, 20, 0, 120),
+        Size = UDim2.new(1, -40, 0, 28),
+        Position = UDim2.new(0, 20, 0, 150),
         BackgroundTransparency = 1,
         Text = "",
         TextColor3 = Colors.Text,
-        TextSize = 22,
+        TextSize = 24,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    -- Subtitle
+    local subtitleLabel = makeTextLabel(card, {
+        Size = UDim2.new(1, -40, 0, 18),
+        Position = UDim2.new(0, 20, 0, 180),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Colors.PurpleBright,
+        TextSize = 13,
         Font = Enum.Font.SourceSansBold,
     })
 
     -- Body
     local bodyLabel = makeTextLabel(card, {
-        Size = UDim2.new(1, -40, 0, 80),
-        Position = UDim2.new(0, 20, 0, 156),
+        Size = UDim2.new(1, -40, 0, 70),
+        Position = UDim2.new(0, 20, 0, 206),
         BackgroundTransparency = 1,
         Text = "",
         TextColor3 = Colors.TextDim,
-        TextSize = 15,
+        TextSize = 14,
         TextWrapped = true,
         Font = Enum.Font.SourceSans,
     })
 
+    -- Dot indicators
+    local dotsFrame = makeFrame(card, {
+        Size = UDim2.new(0, 180, 0, 10),
+        Position = UDim2.new(0.5, -90, 0, 288),
+        BackgroundTransparency = 1,
+    })
+    local dots = {}
+    for i = 1, 6 do
+        local dot = makeFrame(dotsFrame, {
+            Size = UDim2.new(0, 8, 0, 8),
+            Position = UDim2.new(0, (i - 1) * 30, 0, 0),
+            BackgroundColor3 = Color3.fromRGB(50, 50, 60),
+        })
+        makeUICorner(dot, 4)
+        dots[i] = dot
+    end
+
     -- Back button
     local backBtn = makeButton(card, {
-        Size = UDim2.new(0, 100, 0, 42),
-        Position = UDim2.new(0, 20, 1, -56),
-        BackgroundColor3 = Color3.fromRGB(40, 20, 30),
-        Text = "Back",
+        Size = UDim2.new(0, 90, 0, 40),
+        Position = UDim2.new(0, 24, 1, -54),
+        BackgroundColor3 = Color3.fromRGB(30, 28, 40),
+        Text = "←  Back",
         TextColor3 = Colors.TextDim,
-        TextSize = 15,
+        TextSize = 13,
         Font = Enum.Font.SourceSansBold,
+        Visible = false,
     })
     makeUICorner(backBtn, 10)
-    makeUIStroke(backBtn, Colors.Border, 1, 0.7)
+    makeUIStroke(backBtn, Colors.Border, 1, 0.8)
+
+    -- Skip button
+    local skipBtn = makeButton(card, {
+        Size = UDim2.new(0, 70, 0, 40),
+        Position = UDim2.new(0.5, -35, 1, -54),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 30),
+        Text = "Skip",
+        TextColor3 = Colors.TextFaint,
+        TextSize = 12,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(skipBtn, 10)
 
     -- Next button
     local nextBtn = makeButton(card, {
-        Size = UDim2.new(0, 100, 0, 42),
-        Position = UDim2.new(1, -120, 1, -56),
+        Size = UDim2.new(0, 110, 0, 40),
+        Position = UDim2.new(1, -134, 1, -54),
         BackgroundColor3 = Colors.Purple,
-        Text = "Next",
+        Text = "Next  →",
         TextColor3 = Colors.White,
-        TextSize = 15,
+        TextSize = 13,
         Font = Enum.Font.SourceSansBold,
     })
     makeUICorner(nextBtn, 10)
+    local nextGrad = Instance.new("UIGradient")
+    nextGrad.Color = ColorSequence.new(Colors.Purple, Colors.PurpleBright)
+    nextGrad.Rotation = 135
+    nextGrad.Parent = nextBtn
 
     -- Hover effects
     nextBtn.MouseEnter:Connect(function()
-        TweenService:Create(nextBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleBtn}):Play()
+        TweenService:Create(nextBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.PurpleBtn, Size = UDim2.new(0, 116, 0, 42), Position = UDim2.new(1, -140, 1, -55)}):Play()
     end)
     nextBtn.MouseLeave:Connect(function()
-        TweenService:Create(nextBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple}):Play()
+        TweenService:Create(nextBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple, Size = UDim2.new(0, 110, 0, 40), Position = UDim2.new(1, -134, 1, -54)}):Play()
     end)
     backBtn.MouseEnter:Connect(function()
-        TweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(70, 30, 40)}):Play()
+        TweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(45, 42, 58)}):Play()
     end)
     backBtn.MouseLeave:Connect(function()
-        TweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(40, 20, 30)}):Play()
+        TweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(30, 28, 40)}):Play()
+    end)
+    skipBtn.MouseEnter:Connect(function()
+        TweenService:Create(skipBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.TextDim, BackgroundColor3 = Color3.fromRGB(28, 28, 38)}):Play()
+    end)
+    skipBtn.MouseLeave:Connect(function()
+        TweenService:Create(skipBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.TextFaint, BackgroundColor3 = Color3.fromRGB(20, 20, 30)}):Play()
     end)
 
     local steps = {
         {
-            icon = "👋",
-            title = "Welcome to DAYI HUB",
-            body = "Thanks for using DAYI HUB! Let's quickly set things up. You can always change these later in the UI.",
+            icon = "🔥",
+            title = "DAYI HUB",
+            subtitle = "v10.3 — Premium Utility Hub",
+            body = "Thanks for installing DAYI HUB! This quick tour will show you the essentials. You can always replay this intro from Settings.",
+            accent = Colors.Purple,
         },
         {
-            icon = "🎨",
-            title = "Graphics",
-            body = "Optimize your graphics for smoother gameplay. All features start disabled — enable FPS Booster or Unlimited Zoom in the Graphics tab whenever you want.",
+            icon = "🖥️",
+            title = "Graphics Tab",
+            subtitle = "Optimize your visuals",
+            body = "Boost FPS, remove particles, unlock zoom, and disable textures — all from the Graphics tab. Every option starts off for safety.",
+            accent = Colors.Cyan,
         },
         {
-            icon = "🏃",
-            title = "Player",
-            body = "Adjust your movement settings. Walk Speed, Jump Power, Fly, and Noclip can all be configured in the Player tab.",
+            icon = "👤",
+            title = "Player Tab",
+            subtitle = "Movement & abilities",
+            body = "Adjust walk speed, jump power, fly, noclip, bunny hop, and infinite jump. Fine-tune everything to your playstyle.",
+            accent = Colors.Green,
+        },
+        {
+            icon = "👑",
+            title = "Premium Tab",
+            subtitle = "Unlock the full arsenal",
+            body = "Aimbot with smooth targeting, ESP with full customization, 2D circle FOV, and more. Upgrade your key to access premium features.",
+            accent = Colors.Pink,
+        },
+        {
+            icon = "⚙️",
+            title = "Settings & Customization",
+            subtitle = "Make it yours",
+            body = "Adjust UI scale, toggle animations, pick from 12+ accent colors, set keybinds, and configure notifications — all in Settings.",
+            accent = Colors.Amber,
         },
         {
             icon = "✅",
-            title = "Finished!",
-            body = "You're all set. Enjoy using DAYI HUB! Press the key shown in the status bar to toggle the menu.",
+            title = "You're All Set!",
+            subtitle = "Enjoy DAYI HUB",
+            body = "Press RightShift to toggle the menu anytime. Join the Discord for updates and support. Have fun!",
+            accent = Colors.PurpleBright,
         },
     }
 
     local currentStep = 1
+    local isTransitioning = false
 
     local function updateStep()
         local s = steps[currentStep]
+        local accent = s.accent
+
+        -- Update progress bar
+        local progress = currentStep / #steps
+        TweenService:Create(progressFill, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(progress, 0, 1, 0)}):Play()
+        makeUIGradient(progressFill, accent, Colors.PurpleBright, 0)
+
+        -- Update card stroke accent
+        TweenService:Create(card:FindFirstChild("UIStroke"), TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = accent}):Play()
+
+        -- Update icon glow color
+        TweenService:Create(iconGlow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = accent}):Play()
+
+        -- Update ring stroke color
+        TweenService:Create(ringStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = accent}):Play()
+
+        -- Update subtitle color
+        TweenService:Create(subtitleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = accent}):Play()
+
+        -- Update step counter
+        stepCounter.Text = currentStep .. " / " .. #steps
+
+        -- Set text
         iconLabel.Text = s.icon
         titleLabel.Text = s.title
+        subtitleLabel.Text = s.subtitle
         bodyLabel.Text = s.body
 
         -- Update dots
-        for i = 1, 4 do
+        for i = 1, #steps do
             if i == currentStep then
-                TweenService:Create(dots[i], TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Colors.Purple}):Play()
+                TweenService:Create(dots[i], TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = accent, Size = UDim2.new(0, 24, 0, 8), Position = UDim2.new(0, (i - 1) * 30 - 8, 0, 0)}):Play()
             elseif i < currentStep then
-                TweenService:Create(dots[i], TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(100, 80, 120)}):Play()
+                TweenService:Create(dots[i], TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(100, 80, 120), Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, (i - 1) * 30, 0, 0)}):Play()
             else
-                TweenService:Create(dots[i], TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 60)}):Play()
+                TweenService:Create(dots[i], TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(50, 50, 60), Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, (i - 1) * 30, 0, 0)}):Play()
             end
         end
 
-        -- Fade in content
+        -- Fade in content with slight upward motion
         iconLabel.TextTransparency = 1
         titleLabel.TextTransparency = 1
+        subtitleLabel.TextTransparency = 1
         bodyLabel.TextTransparency = 1
-        TweenService:Create(iconLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-        TweenService:Create(titleLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-        TweenService:Create(bodyLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+
+        TweenService:Create(iconLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        task.wait(0.05)
+        TweenService:Create(titleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        task.wait(0.05)
+        TweenService:Create(subtitleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        task.wait(0.05)
+        TweenService:Create(bodyLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 
         -- Button states
-        if currentStep == 1 then
-            backBtn.Visible = false
-        else
-            backBtn.Visible = true
-        end
+        backBtn.Visible = (currentStep > 1)
 
-        if currentStep == 4 then
-            nextBtn.Text = "Finish"
+        if currentStep == #steps then
+            nextBtn.Text = "Get Started  →"
         else
-            nextBtn.Text = "Next"
+            nextBtn.Text = "Next  →"
         end
     end
 
     backBtn.MouseButton1Click:Connect(function()
-        if currentStep > 1 then
+        if currentStep > 1 and not isTransitioning then
+            isTransitioning = true
             currentStep = currentStep - 1
             updateStep()
+            task.wait(0.3)
+            isTransitioning = false
         end
     end)
 
     nextBtn.MouseButton1Click:Connect(function()
-        if currentStep < 4 then
+        if isTransitioning then return end
+        if currentStep < #steps then
+            isTransitioning = true
             currentStep = currentStep + 1
             updateStep()
+            task.wait(0.3)
+            isTransitioning = false
         else
             -- Finish: close onboarding, save config, proceed
-            TweenService:Create(cardScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
-            TweenService:Create(dim, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-            task.wait(0.2)
+            isTransitioning = true
+            TweenService:Create(cardScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.8}):Play()
+            TweenService:Create(dim, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+            task.wait(0.3)
             obGui:Destroy()
             Config.FirstLaunch = false
             saveConfig()
             onComplete()
         end
+    end)
+
+    skipBtn.MouseButton1Click:Connect(function()
+        if isTransitioning then return end
+        isTransitioning = true
+        TweenService:Create(cardScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+        TweenService:Create(dim, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        task.wait(0.25)
+        obGui:Destroy()
+        Config.FirstLaunch = false
+        saveConfig()
+        onComplete()
     end)
 
     updateStep()
@@ -5883,7 +6344,7 @@ local function showLoadingScreen(onComplete)
             -- Stop spinner, show checkmark
             ml.spinnerCut:Destroy()
             ml.spinner:Destroy()
-            if ml.spinnerConn then task.cancel(ml.spinnerConn) end
+            if ml.spinnerConn then pcall(task.cancel, ml.spinnerConn) end
             ml.status.Text = "✓"
             TweenService:Create(ml.status, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextColor3 = Color3.fromRGB(100, 220, 130)}):Play()
             TweenService:Create(ml.nameLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Colors.Text}):Play()
@@ -5918,7 +6379,7 @@ local function showLoadingScreen(onComplete)
         task.wait(0.6)
 
         -- Fade out with blur-like effect
-        if particleConn then particleConn:Disconnect() end
+        if particleConn then pcall(task.cancel, particleConn) end
         TweenService:Create(cardScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.75}):Play()
         TweenService:Create(dim, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
         TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
@@ -6041,7 +6502,7 @@ local function init()
 
     -- Force all features OFF on startup; user enables what they want
     for _, k in ipairs({
-        "UnlimitedZoom", "FPSBooster", "VFXRemover", "TextureOptimizer",
+        "UnlimitedZoom", "FPSBooster", "VFXRemover", "ParticleRemover", "TextureOptimizer",
         "ShadowRemover", "LightOptimizer", "WaterOptimizer", "GrassOptimizer",
         "WallhackESP", "SkeletonESP", "BoxESP", "NameESP",
         "Aimbot", "MobileAimbot", "ShowCircle",
