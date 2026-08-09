@@ -1354,6 +1354,7 @@ end
 local ScreenGui
 local MainFrame
 local MainFrameScale
+local showOnboarding
 local ContentArea
 local PageFrames = {}
 local SidebarButtons = {}
@@ -2173,6 +2174,16 @@ local function buildGUI()
         end },
         { text = "💾  Save Config",  filled = false, action = function() notify("DAYI HUB", "Config saved (local).", 2) end },
         { text = "📁  Open Folder",  filled = false, action = function() notify("DAYI HUB", "Folder opening...", 2) end },
+        { text = "🎬  Replay Intro",  filled = false, action = function()
+            Config.FirstLaunch = true
+            saveConfig()
+            notify("DAYI HUB", "Reloading intro...", 2)
+            task.wait(0.5)
+            if MainFrame then MainFrame.Visible = false end
+            showOnboarding(function()
+                if MainFrame then MainFrame.Visible = true end
+            end)
+        end },
     }
 
     for i, qa in ipairs(qaItems) do
@@ -3092,18 +3103,19 @@ local function buildCreditsPage()
         { emoji = "⚙️", name = "syfix", role = "UI Designer",            accent = Colors.Cyan },
         { emoji = "🎨", name = "syfix", role = "Script Developer",       accent = Colors.Pink },
         { emoji = "🌸", name = "beren", role = "Best Waifu 💕",          accent = Colors.Pink },
+        { emoji = "🤝", name = "yağız", role = "Best Bro 🤜🤛",           accent = Colors.Cyan },
     }
 
     for _, dev in ipairs(devCards) do
-        local isWaifu = (dev.role == "Best Waifu 💕")
+        local isSpecial = (dev.role == "Best Waifu 💕" or dev.role == "Best Bro 🤜🤛")
 
+        local cardHeight = isSpecial and 80 or 64
         local card = makeFrame(scroll, {
-            Size = UDim2.new(1, 0, 0, 64),
+            Size = UDim2.new(1, 0, 0, cardHeight),
             BackgroundColor3 = Colors.Card,
         })
-        makeUICorner(card, 10)
+        makeUICorner(card, 12)
         makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
-        makeUIStroke(card, dev.accent, 1, 0.7)
 
         local accentBar = makeFrame(card, {
             Size = UDim2.new(0, 3, 1, 0),
@@ -3112,162 +3124,230 @@ local function buildCreditsPage()
         makeUICorner(accentBar, 2)
         makeUIGradient(accentBar, dev.accent, Color3.fromRGB(dev.accent.R * 180, dev.accent.G * 180, dev.accent.B * 180), 180)
 
-        -- Waifu: glowing aura behind card
-        local waifuGlow = nil
-        if isWaifu then
-            waifuGlow = makeFrame(card, {
-                Size = UDim2.new(1, 8, 1, 8),
-                Position = UDim2.new(0, -4, 0, -4),
-                BackgroundColor3 = Colors.Pink,
-                BackgroundTransparency = 0.9,
+        if isSpecial then
+            --==== PREMIUM SPECIAL CARD ====--
+            -- Soft glowing border that gently pulses
+            local glowStroke = Instance.new("UIStroke")
+            glowStroke.Thickness = 1.5
+            glowStroke.Transparency = 0.2
+            glowStroke.Parent = card
+            local glowGrad = Instance.new("UIGradient")
+            glowGrad.Color = ColorSequence.new(dev.accent, Color3.fromRGB(255, 255, 255))
+            glowGrad.Parent = glowStroke
+            task.spawn(function()
+                while glowStroke.Parent do
+                    TweenService:Create(glowStroke, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5}):Play()
+                    task.wait(2.5)
+                    TweenService:Create(glowStroke, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.1}):Play()
+                    task.wait(2.5)
+                end
+            end)
+
+            -- Subtle aura glow behind card
+            local aura = makeFrame(card, {
+                Size = UDim2.new(1, 6, 1, 6),
+                Position = UDim2.new(0, -3, 0, -3),
+                BackgroundColor3 = dev.accent,
+                BackgroundTransparency = 0.92,
                 BorderSizePixel = 0,
                 ZIndex = 0,
             })
-            makeUICorner(waifuGlow, 14)
-            local glowScale = Instance.new("UIScale")
-            glowScale.Parent = waifuGlow
+            makeUICorner(aura, 14)
             task.spawn(function()
-                while waifuGlow.Parent do
-                    TweenService:Create(waifuGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.75}):Play()
-                    TweenService:Create(glowScale, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.03}):Play()
-                    task.wait(2)
-                    TweenService:Create(waifuGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.92}):Play()
-                    TweenService:Create(glowScale, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1}):Play()
-                    task.wait(2)
+                while aura.Parent do
+                    TweenService:Create(aura, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.82}):Play()
+                    task.wait(3)
+                    TweenService:Create(aura, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.95}):Play()
+                    task.wait(3)
                 end
             end)
-        end
 
-        -- Waifu: floating bounce animation
-        local cardScale = Instance.new("UIScale")
-        cardScale.Scale = 1
-        cardScale.Parent = card
-        if isWaifu then
+            -- Slow shimmer sweep across card
+            local shimmer = makeFrame(card, {
+                Size = UDim2.new(0, 60, 1, 0),
+                Position = UDim2.new(0, -60, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ZIndex = 4,
+            })
+            local shimmerGrad = Instance.new("UIGradient")
+            shimmerGrad.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+                ColorSequenceKeypoint.new(1,   Color3.fromRGB(255, 255, 255)),
+            })
+            shimmerGrad.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5, 0.85),
+                NumberSequenceKeypoint.new(1, 1),
+            })
+            shimmerGrad.Parent = shimmer
+            makeUICorner(shimmer, 12)
             task.spawn(function()
-                while card.Parent do
-                    TweenService:Create(cardScale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1.015}):Play()
-                    task.wait(1.5)
-                    TweenService:Create(cardScale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Scale = 1}):Play()
-                    task.wait(1.5)
+                while shimmer.Parent do
+                    shimmer.Position = UDim2.new(0, -60, 0, 0)
+                    TweenService:Create(shimmer, TweenInfo.new(5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0)}):Play()
+                    task.wait(6)
                 end
             end)
-        end
 
-        local iconCircle = makeFrame(card, {
-            Size = UDim2.new(0, 44, 0, 44),
-            Position = UDim2.new(0, 14, 0.5, -22),
-            BackgroundColor3 = Color3.fromRGB(30, 30, 40),
-        })
-        makeUICorner(iconCircle, 22)
-        makeUIGradient(iconCircle, Color3.fromRGB(40, 36, 52), Color3.fromRGB(28, 26, 38), 135)
-        makeUIStroke(iconCircle, dev.accent, 1.5, 0.3)
+            -- Premium badge in top-right
+            local badgeText = (dev.role == "Best Waifu 💕") and "PREMIUM" or "LEGEND"
+            local badge = makeFrame(card, {
+                Size = UDim2.new(0, 58, 0, 16),
+                Position = UDim2.new(1, -66, 0, 8),
+                BackgroundColor3 = dev.accent,
+                BorderSizePixel = 0,
+                ZIndex = 6,
+            })
+            makeUICorner(badge, 8)
+            local badgeGrad = Instance.new("UIGradient")
+            badgeGrad.Color = ColorSequence.new(dev.accent, Color3.fromRGB(
+                math.min(dev.accent.R * 255 + 30, 255),
+                math.min(dev.accent.G * 255 + 30, 255),
+                math.min(dev.accent.B * 255 + 30, 255)
+            ))
+            badgeGrad.Rotation = 90
+            badgeGrad.Parent = badge
+            makeTextLabel(badge, {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = badgeText,
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                TextSize = 8,
+                Font = Enum.Font.SourceSansBold,
+            })
 
-        -- Waifu: pulsing icon glow ring
-        if isWaifu then
+            -- Icon with soft pulsing glow
+            local iconSize = 48
             local iconGlow = makeFrame(card, {
-                Size = UDim2.new(0, 56, 0, 56),
-                Position = UDim2.new(0, 8, 0.5, -28),
-                BackgroundColor3 = Colors.Pink,
-                BackgroundTransparency = 0.85,
+                Size = UDim2.new(0, iconSize + 12, 0, iconSize + 12),
+                Position = UDim2.new(0, 8, 0.5, -(iconSize + 12)/2),
+                BackgroundColor3 = dev.accent,
+                BackgroundTransparency = 0.88,
                 BorderSizePixel = 0,
-                ZIndex = 0,
+                ZIndex = 1,
             })
-            makeUICorner(iconGlow, 28)
+            makeUICorner(iconGlow, (iconSize + 12)/2)
             task.spawn(function()
                 while iconGlow.Parent do
-                    TweenService:Create(iconGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.6, Size = UDim2.new(0, 64, 0, 64), Position = UDim2.new(0, 4, 0.5, -32)}):Play()
-                    task.wait(1.5)
-                    TweenService:Create(iconGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.9, Size = UDim2.new(0, 56, 0, 56), Position = UDim2.new(0, 8, 0.5, -28)}):Play()
-                    task.wait(1.5)
+                    TweenService:Create(iconGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.7, Size = UDim2.new(0, iconSize + 18, 0, iconSize + 18), Position = UDim2.new(0, 5, 0.5, -(iconSize + 18)/2)}):Play()
+                    task.wait(2)
+                    TweenService:Create(iconGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.9, Size = UDim2.new(0, iconSize + 12, 0, iconSize + 12), Position = UDim2.new(0, 8, 0.5, -(iconSize + 12)/2)}):Play()
+                    task.wait(2)
                 end
             end)
-        end
 
-        local iconLabel = makeTextLabel(iconCircle, {
-            Size = UDim2.new(1, 0, 1, 0),
-            BackgroundTransparency = 1,
-            Text = dev.emoji,
-            TextColor3 = Colors.Text,
-            TextSize = 22,
-            Font = Enum.Font.SourceSansBold,
-        })
+            local iconCircle = makeFrame(card, {
+                Size = UDim2.new(0, iconSize, 0, iconSize),
+                Position = UDim2.new(0, 14, 0.5, -iconSize/2),
+                BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+                ZIndex = 3,
+            })
+            makeUICorner(iconCircle, iconSize/2)
+            local iconBgGrad = Instance.new("UIGradient")
+            iconBgGrad.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 36, 52)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 22, 34)),
+            })
+            iconBgGrad.Rotation = 135
+            iconBgGrad.Parent = iconCircle
+            makeUIStroke(iconCircle, dev.accent, 1.5, 0.2)
 
-        -- Waifu: icon emoji gentle bounce
-        if isWaifu then
+            local iconLabel = makeTextLabel(iconCircle, {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = dev.emoji,
+                TextColor3 = Colors.Text,
+                TextSize = 24,
+                Font = Enum.Font.SourceSansBold,
+            })
+            -- Gentle icon float
             task.spawn(function()
                 while iconLabel.Parent do
-                    TweenService:Create(iconLabel, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, -2), TextSize = 24}):Play()
-                    task.wait(1.2)
-                    TweenService:Create(iconLabel, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, 0), TextSize = 22}):Play()
-                    task.wait(1.2)
+                    TweenService:Create(iconLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, -2)}):Play()
+                    task.wait(1.5)
+                    TweenService:Create(iconLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+                    task.wait(1.5)
                 end
             end)
-        end
 
-        makeTextLabel(card, {
-            Size = UDim2.new(1, -70, 0, 20),
-            Position = UDim2.new(0, 68, 0, 14),
-            BackgroundTransparency = 1,
-            Text = dev.name,
-            TextColor3 = Colors.Text,
-            TextSize = 14,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Font = Enum.Font.SourceSansBold,
-        })
+            -- Name label (larger, bolder)
+            makeTextLabel(card, {
+                Size = UDim2.new(1, -90, 0, 22),
+                Position = UDim2.new(0, 74, 0, 18),
+                BackgroundTransparency = 1,
+                Text = dev.name,
+                TextColor3 = Colors.Text,
+                TextSize = 16,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Font = Enum.Font.SourceSansBold,
+            })
 
-        local roleLabel = makeTextLabel(card, {
-            Size = UDim2.new(1, -70, 0, 16),
-            Position = UDim2.new(0, 68, 0, 36),
-            BackgroundTransparency = 1,
-            Text = dev.role,
-            TextColor3 = dev.accent,
-            TextSize = 11,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Font = Enum.Font.SourceSans,
-        })
-
-        -- Waifu: role text shimmer (text color pulses)
-        if isWaifu then
+            -- Role label with gentle color pulse
+            local roleLabel = makeTextLabel(card, {
+                Size = UDim2.new(1, -90, 0, 18),
+                Position = UDim2.new(0, 74, 0, 42),
+                BackgroundTransparency = 1,
+                Text = dev.role,
+                TextColor3 = dev.accent,
+                TextSize = 12,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Font = Enum.Font.SourceSansBold,
+            })
+            local roleBright = Color3.fromRGB(
+                math.min(dev.accent.R * 255 + 40, 255),
+                math.min(dev.accent.G * 255 + 40, 255),
+                math.min(dev.accent.B * 255 + 40, 255)
+            )
             task.spawn(function()
-                local bright = Color3.fromRGB(255, 180, 220)
                 while roleLabel.Parent do
-                    TweenService:Create(roleLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = bright}):Play()
-                    task.wait(1.5)
-                    TweenService:Create(roleLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = dev.accent}):Play()
-                    task.wait(1.5)
+                    TweenService:Create(roleLabel, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = roleBright}):Play()
+                    task.wait(2)
+                    TweenService:Create(roleLabel, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = dev.accent}):Play()
+                    task.wait(2)
                 end
             end)
-        end
 
-        -- Waifu: sparkle particles around the card
-        if isWaifu then
-            for i = 1, 5 do
-                local sparkle = makeTextLabel(card, {
-                    Size = UDim2.new(0, 14, 0, 14),
-                    Position = UDim2.new(1, -20 - (i * 12), 0, 10 + (i * 8)),
-                    BackgroundTransparency = 1,
-                    Text = "✨",
-                    TextColor3 = Colors.Pink,
-                    TextSize = 12,
-                    Font = Enum.Font.SourceSansBold,
-                    ZIndex = 5,
-                })
-                task.spawn(function()
-                    while sparkle.Parent do
-                        local randX = math.random(-10, 10)
-                        local randY = math.random(-5, 15)
-                        TweenService:Create(sparkle, TweenInfo.new(1 + math.random(), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                            Position = UDim2.new(1, -20 - (i * 12) + randX, 0, 10 + (i * 8) + randY),
-                            TextTransparency = 0,
-                        }):Play()
-                        task.wait(1 + math.random())
-                        TweenService:Create(sparkle, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                            TextTransparency = 1,
-                        }):Play()
-                        task.wait(0.8 + math.random() * 0.5)
-                    end
-                end)
-            end
+        else
+            --==== NORMAL DEV CARD ====--
+            makeUIStroke(card, dev.accent, 1, 0.7)
+            local iconCircle = makeFrame(card, {
+                Size = UDim2.new(0, 44, 0, 44),
+                Position = UDim2.new(0, 14, 0.5, -22),
+                BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+            })
+            makeUICorner(iconCircle, 22)
+            makeUIGradient(iconCircle, Color3.fromRGB(40, 36, 52), Color3.fromRGB(28, 26, 38), 135)
+            makeUIStroke(iconCircle, dev.accent, 1.5, 0.3)
+            makeTextLabel(iconCircle, {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = dev.emoji,
+                TextColor3 = Colors.Text,
+                TextSize = 22,
+                Font = Enum.Font.SourceSansBold,
+            })
+            makeTextLabel(card, {
+                Size = UDim2.new(1, -70, 0, 20),
+                Position = UDim2.new(0, 68, 0, 14),
+                BackgroundTransparency = 1,
+                Text = dev.name,
+                TextColor3 = Colors.Text,
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Font = Enum.Font.SourceSansBold,
+            })
+            makeTextLabel(card, {
+                Size = UDim2.new(1, -70, 0, 16),
+                Position = UDim2.new(0, 68, 0, 36),
+                BackgroundTransparency = 1,
+                Text = dev.role,
+                TextColor3 = dev.accent,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Font = Enum.Font.SourceSans,
+            })
         end
     end
 
@@ -5232,7 +5312,7 @@ end
 --==========================================================================
 -- FIRST LAUNCH ONBOARDING
 --==========================================================================
-local function showOnboarding(onComplete)
+showOnboarding = function(onComplete)
     local oldOb = CoreGui:FindFirstChild("DAYI_HUB_ONBOARDING")
     if oldOb then oldOb:Destroy() end
 
