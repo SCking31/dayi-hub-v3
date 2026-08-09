@@ -146,8 +146,14 @@ local State = {
     TextureBackup       = {},
     WaterBackup          = {},
     GrassBackup         = {},
+    VFXBackup           = {},
+    FPSBackup           = {},
+    ShadowBackup        = {},
     VFXConnection       = nil,
     ParticleConnection  = nil,
+    TextureConnection   = nil,
+    GrassConnection     = nil,
+    ShadowConnection    = nil,
     UIVisible           = true,
 }
 
@@ -2405,11 +2411,11 @@ local function buildGraphicsPage()
         { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = false, key = "FPSBooster" },
         { name = "VFX Remover",        desc = "Remove all visual effects.",  icon = "📦", locked = false, default = false, key = "VFXRemover" },
         { name = "Particle Remover",   desc = "Remove all particles.",       icon = "✨", locked = false, default = false, key = "ParticleRemover" },
-        -- { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = true,  default = false, key = "TextureOptimizer" },
-        { name = "Shadow Remover",     desc = "Remove all shadows.",          icon = "☀️", locked = true,  default = false, key = "ShadowRemover" },
-        { name = "Light Optimizer",     desc = "Optimize game lighting.",      icon = "💡", locked = true,  default = false, key = "LightOptimizer" },
-        { name = "Water Optimizer",     desc = "Improve water performance.",   icon = "💧", locked = true,  default = false, key = "WaterOptimizer" },
-        { name = "Grass Optimizer",     desc = "Optimize grass quality.",      icon = "🌿", locked = true,  default = false, key = "GrassOptimizer" },
+        { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = false, default = false, key = "TextureOptimizer" },
+        { name = "Shadow Remover",     desc = "Remove all shadows.",          icon = "☀️", locked = false, default = false, key = "ShadowRemover" },
+        { name = "Light Optimizer",     desc = "Optimize game lighting.",      icon = "💡", locked = false, default = false, key = "LightOptimizer" },
+        { name = "Water Optimizer",     desc = "Improve water performance.",   icon = "💧", locked = false, default = false, key = "WaterOptimizer" },
+        { name = "Grass Optimizer",     desc = "Optimize grass quality.",      icon = "🌿", locked = false, default = false, key = "GrassOptimizer" },
     }
 
     for i, f in ipairs(features) do
@@ -3449,15 +3455,41 @@ end
 local function applyFPSBooster()
     pcall(function()
         if Config.FPSBooster then
+            if not State.FPSBackup.Done then
+                State.FPSBackup.GlobalShadows = Lighting.GlobalShadows
+                State.FPSBackup.FogEnd = Lighting.FogEnd
+                State.FPSBackup.Materials = {}
+                State.FPSBackup.Reflectance = {}
+                State.FPSBackup.Particles = {}
+                for _, v in ipairs(Workspace:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        State.FPSBackup.Materials[v] = v.Material
+                        State.FPSBackup.Reflectance[v] = v.Reflectance
+                        v.Material = Enum.Material.Plastic
+                        v.Reflectance = 0
+                    elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                        State.FPSBackup.Particles[v] = v.Enabled
+                        v.Enabled = false
+                    end
+                end
+                State.FPSBackup.Done = true
+            end
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 9e9
-            for _, v in ipairs(Workspace:GetDescendants()) do
-                if v:IsA("BasePart") then
-                    v.Material = Enum.Material.Plastic
-                    v.Reflectance = 0
-                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-                    v.Enabled = false
+        else
+            if State.FPSBackup.Done then
+                Lighting.GlobalShadows = State.FPSBackup.GlobalShadows
+                Lighting.FogEnd = State.FPSBackup.FogEnd
+                for obj, mat in pairs(State.FPSBackup.Materials) do
+                    pcall(function() obj.Material = mat end)
                 end
+                for obj, ref in pairs(State.FPSBackup.Reflectance) do
+                    pcall(function() obj.Reflectance = ref end)
+                end
+                for obj, en in pairs(State.FPSBackup.Particles) do
+                    pcall(function() obj.Enabled = en end)
+                end
+                table.clear(State.FPSBackup)
             end
         end
     end)
@@ -3467,6 +3499,13 @@ local function destroyVFX(obj)
     pcall(function()
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
         or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            if not State.VFXBackup[obj] then
+                State.VFXBackup[obj] = { Enabled = obj.Enabled }
+                if obj:IsA("ParticleEmitter") then
+                    State.VFXBackup[obj].Rate = obj.Rate
+                    State.VFXBackup[obj].Size = obj.Size
+                end
+            end
             obj.Enabled = false
             if obj:IsA("ParticleEmitter") then
                 obj.Rate = 0
@@ -3478,9 +3517,14 @@ end
 
 local function restoreVFX(obj)
     pcall(function()
-        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
-        or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-            obj.Enabled = true
+        local bak = State.VFXBackup[obj]
+        if bak then
+            obj.Enabled = bak.Enabled
+            if obj:IsA("ParticleEmitter") and bak.Rate then
+                obj.Rate = bak.Rate
+                obj.Size = bak.Size
+            end
+            State.VFXBackup[obj] = nil
         end
     end)
 end
@@ -3504,6 +3548,16 @@ local function applyVFXRemover()
             for _, v in ipairs(Workspace:GetDescendants()) do
                 restoreVFX(v)
             end
+            for obj, bak in pairs(State.VFXBackup) do
+                pcall(function()
+                    obj.Enabled = bak.Enabled
+                    if obj:IsA("ParticleEmitter") and bak.Rate then
+                        obj.Rate = bak.Rate
+                        obj.Size = bak.Size
+                    end
+                end)
+            end
+            table.clear(State.VFXBackup)
         end
     end)
 end
@@ -3512,7 +3566,9 @@ local function destroyParticles(obj)
     pcall(function()
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
             if not State.ParticleBackup then State.ParticleBackup = {} end
-            State.ParticleBackup[obj] = obj.Enabled
+            if State.ParticleBackup[obj] == nil then
+                State.ParticleBackup[obj] = obj.Enabled
+            end
             obj.Enabled = false
         end
     end)
@@ -3521,8 +3577,10 @@ end
 local function restoreParticles(obj)
     pcall(function()
         if (obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")) and State.ParticleBackup then
-            obj.Enabled = State.ParticleBackup[obj] or true
-            State.ParticleBackup[obj] = nil
+            if State.ParticleBackup[obj] ~= nil then
+                obj.Enabled = State.ParticleBackup[obj]
+                State.ParticleBackup[obj] = nil
+            end
         end
     end)
 end
@@ -3546,21 +3604,48 @@ local function applyParticleRemover()
             for _, v in ipairs(Workspace:GetDescendants()) do
                 restoreParticles(v)
             end
+            if State.ParticleBackup then
+                for obj, en in pairs(State.ParticleBackup) do
+                    pcall(function() obj.Enabled = en end)
+                end
+                table.clear(State.ParticleBackup)
+            end
         end
     end)
 end
 
 local function applyTextureOptimizer()
     pcall(function()
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if v:IsA("Texture") or v:IsA("Decal") then
-                if Config.TextureOptimizer then
-                    State.TextureBackup[v] = v.Transparency
+        if Config.TextureOptimizer then
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("Texture") or v:IsA("Decal") then
+                    if State.TextureBackup[v] == nil then
+                        State.TextureBackup[v] = v.Transparency
+                    end
                     v.Transparency = 1
-                else
-                    v.Transparency = State.TextureBackup[v] or 0
                 end
             end
+            if not State.TextureConnection then
+                State.TextureConnection = Workspace.DescendantAdded:Connect(function(obj)
+                    task.defer(function()
+                        if (obj:IsA("Texture") or obj:IsA("Decal")) and Config.TextureOptimizer then
+                            if State.TextureBackup[obj] == nil then
+                                State.TextureBackup[obj] = obj.Transparency
+                            end
+                            obj.Transparency = 1
+                        end
+                    end)
+                end)
+            end
+        else
+            if State.TextureConnection then
+                State.TextureConnection:Disconnect()
+                State.TextureConnection = nil
+            end
+            for obj, transp in pairs(State.TextureBackup) do
+                pcall(function() obj.Transparency = transp end)
+            end
+            table.clear(State.TextureBackup)
         end
     end)
 end
@@ -3568,15 +3653,44 @@ end
 local function applyShadowRemover()
     pcall(function()
         if Config.ShadowRemover then
+            if State.ShadowBackup.GlobalShadows == nil then
+                State.ShadowBackup.GlobalShadows = Lighting.GlobalShadows
+            end
             Lighting.GlobalShadows = false
             for _, v in ipairs(Workspace:GetDescendants()) do
-                if v:IsA("BasePart") then v.CastShadow = false end
+                if v:IsA("BasePart") then
+                    if State.ShadowBackup[v] == nil then
+                        State.ShadowBackup[v] = v.CastShadow
+                    end
+                    v.CastShadow = false
+                end
+            end
+            if not State.ShadowConnection then
+                State.ShadowConnection = Workspace.DescendantAdded:Connect(function(obj)
+                    task.defer(function()
+                        if obj:IsA("BasePart") and Config.ShadowRemover then
+                            if State.ShadowBackup[obj] == nil then
+                                State.ShadowBackup[obj] = obj.CastShadow
+                            end
+                            obj.CastShadow = false
+                        end
+                    end)
+                end)
             end
         else
-            Lighting.GlobalShadows = true
-            for _, v in ipairs(Workspace:GetDescendants()) do
-                if v:IsA("BasePart") then v.CastShadow = true end
+            if State.ShadowConnection then
+                State.ShadowConnection:Disconnect()
+                State.ShadowConnection = nil
             end
+            if State.ShadowBackup.GlobalShadows ~= nil then
+                Lighting.GlobalShadows = State.ShadowBackup.GlobalShadows
+            end
+            for obj, cs in pairs(State.ShadowBackup) do
+                if obj ~= "GlobalShadows" and typeof(obj) == "Instance" then
+                    pcall(function() obj.CastShadow = cs end)
+                end
+            end
+            table.clear(State.ShadowBackup)
         end
     end)
 end
@@ -3584,49 +3698,96 @@ end
 local function applyLightOptimizer()
     pcall(function()
         if Config.LightOptimizer then
-            State.LightingBackup.Brightness = Lighting.Brightness
-            State.LightingBackup.ClockTime = Lighting.ClockTime
+            if State.LightingBackup.Brightness == nil then
+                State.LightingBackup.Brightness = Lighting.Brightness
+            end
+            if State.LightingBackup.ClockTime == nil then
+                State.LightingBackup.ClockTime = Lighting.ClockTime
+            end
+            if State.LightingBackup.EnvDiffuse == nil then
+                State.LightingBackup.EnvDiffuse = Lighting.EnvironmentDiffuseScale
+            end
+            if State.LightingBackup.EnvSpecular == nil then
+                State.LightingBackup.EnvSpecular = Lighting.EnvironmentSpecularScale
+            end
             Lighting.Brightness = 3
             Lighting.ClockTime = 12
             Lighting.EnvironmentDiffuseScale = 0
             Lighting.EnvironmentSpecularScale = 0
         else
-            Lighting.Brightness = State.LightingBackup.Brightness or 2
-            Lighting.ClockTime = State.LightingBackup.ClockTime or 14
-            Lighting.EnvironmentDiffuseScale = 1
-            Lighting.EnvironmentSpecularScale = 1
+            if State.LightingBackup.Brightness ~= nil then
+                Lighting.Brightness = State.LightingBackup.Brightness
+            end
+            if State.LightingBackup.ClockTime ~= nil then
+                Lighting.ClockTime = State.LightingBackup.ClockTime
+            end
+            if State.LightingBackup.EnvDiffuse ~= nil then
+                Lighting.EnvironmentDiffuseScale = State.LightingBackup.EnvDiffuse
+            end
+            if State.LightingBackup.EnvSpecular ~= nil then
+                Lighting.EnvironmentSpecularScale = State.LightingBackup.EnvSpecular
+            end
+            table.clear(State.LightingBackup)
         end
     end)
 end
 
 local function applyWaterOptimizer()
     pcall(function()
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if v:IsA("BasePart") and v.Material == Enum.Material.Water then
-                if Config.WaterOptimizer then
-                    State.WaterBackup[v] = v.Material
+        if Config.WaterOptimizer then
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") and v.Material == Enum.Material.Water then
+                    if State.WaterBackup[v] == nil then
+                        State.WaterBackup[v] = { Material = v.Material, Transparency = v.Transparency }
+                    end
                     v.Material = Enum.Material.Plastic
                     v.Transparency = 0.5
-                else
-                    v.Material = State.WaterBackup[v] or Enum.Material.Water
-                    v.Transparency = 0
                 end
             end
+        else
+            for obj, bak in pairs(State.WaterBackup) do
+                pcall(function()
+                    obj.Material = bak.Material
+                    obj.Transparency = bak.Transparency
+                end)
+            end
+            table.clear(State.WaterBackup)
         end
     end)
 end
 
 local function applyGrassOptimizer()
     pcall(function()
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if v:IsA("BasePart") and v.Material == Enum.Material.Grass then
-                if Config.GrassOptimizer then
-                    State.GrassBackup[v] = v.Material
+        if Config.GrassOptimizer then
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") and v.Material == Enum.Material.Grass then
+                    if State.GrassBackup[v] == nil then
+                        State.GrassBackup[v] = v.Material
+                    end
                     v.Material = Enum.Material.Plastic
-                else
-                    v.Material = State.GrassBackup[v] or Enum.Material.Grass
                 end
             end
+            if not State.GrassConnection then
+                State.GrassConnection = Workspace.DescendantAdded:Connect(function(obj)
+                    task.defer(function()
+                        if obj:IsA("BasePart") and obj.Material == Enum.Material.Grass and Config.GrassOptimizer then
+                            if State.GrassBackup[obj] == nil then
+                                State.GrassBackup[obj] = obj.Material
+                            end
+                            obj.Material = Enum.Material.Plastic
+                        end
+                    end)
+                end)
+            end
+        else
+            if State.GrassConnection then
+                State.GrassConnection:Disconnect()
+                State.GrassConnection = nil
+            end
+            for obj, mat in pairs(State.GrassBackup) do
+                pcall(function() obj.Material = mat end)
+            end
+            table.clear(State.GrassBackup)
         end
     end)
 end
