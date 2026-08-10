@@ -1,6 +1,6 @@
 --[[
 ══════════════════════════════════════════════════════════════════════════════
-    DAYI SCRIPT HUB v10.1
+    DAYI SCRIPT HUB v10.4
     Premium Utility Hub
     Owner & Developer: syfix
     Discord: discord.gg/dayikey
@@ -71,6 +71,7 @@ local Config = {
     FirstLaunch         = true,
     BackgroundParticles  = true,
     ParticleLevel        = 60,
+    DeviceMode           = nil,  -- "pc" or "mobile", set by device selector
 }
 
 --==========================================================================
@@ -131,7 +132,6 @@ local State = {
     FlyBodyGyro         = nil,
     NoclipConnection    = nil,
     BunnyHopConnection  = nil,
-    BunnyHopSpeedConn    = nil,
     InfiniteJumpConn    = nil,
     GodModeConnection   = nil,
     AntiRagdollConn     = nil,
@@ -1568,7 +1568,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 20),
         Position = UDim2.new(0, 0, 0, 4),
         BackgroundTransparency = 1,
-        Text = "v1.1",
+        Text = "v10.4",
         TextColor3 = Colors.Text,
         TextSize = 13,
         Font = Enum.Font.SourceSansBold,
@@ -1577,7 +1577,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 14),
         Position = UDim2.new(0, 0, 0, 22),
         BackgroundTransparency = 1,
-        Text = "v1.1",
+        Text = "v10.4",
         TextColor3 = Colors.TextDim,
         TextSize = 10,
         Font = Enum.Font.SourceSans,
@@ -2109,13 +2109,15 @@ local function buildGUI()
             end
             if fpsFrames >= 1 then
                 local avgFps = math.floor(fpsAccum / fpsFrames)
-                sysValLabels.fps.Text = avgFps .. " FPS"
-                if avgFps >= 50 then
-                    sysValLabels.fps.TextColor3 = Colors.Green
-                elseif avgFps >= 30 then
-                    sysValLabels.fps.TextColor3 = Colors.Amber
-                else
-                    sysValLabels.fps.TextColor3 = Colors.Red
+                if sysValLabels.fps then
+                    sysValLabels.fps.Text = avgFps .. " FPS"
+                    if avgFps >= 50 then
+                        sysValLabels.fps.TextColor3 = Colors.Green
+                    elseif avgFps >= 30 then
+                        sysValLabels.fps.TextColor3 = Colors.Amber
+                    else
+                        sysValLabels.fps.TextColor3 = Colors.Red
+                    end
                 end
                 fpsAccum = 0
                 fpsFrames = 0
@@ -2253,7 +2255,7 @@ local function buildGUI()
 
     local statusItems = {
         { icon = "💬", label = "Discord",    val = "discord.gg/QFwWBWM2j", color = Colors.Purple, live = false },
-        { icon = "⌨️", label = "Build",       val = "v10.1",              color = Colors.Purple, live = false },
+        { icon = "⌨️", label = "Build",       val = "v10.4",              color = Colors.Purple, live = false },
         { icon = "📊", label = "FPS",          val = "-- FPS",             color = Colors.Green,  live = "fps" },
         { icon = "📡", label = "Ping",         val = "-- ms",              color = Colors.Green,  live = "ping" },
     }
@@ -3096,7 +3098,7 @@ local function buildCreditsPage()
         Size = UDim2.new(1, -60, 0, 16),
         Position = UDim2.new(0, 56, 0, 42),
         BackgroundTransparency = 1,
-        Text = "v10.1 — Premium Utility Hub",
+        Text = "v10.4 — Premium Utility Hub",
         TextColor3 = Colors.TextDim,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -4403,10 +4405,6 @@ local function setupBunnyHop()
         State.BunnyHopConnection:Disconnect()
         State.BunnyHopConnection = nil
     end
-    if State.BunnyHopSpeedConn then
-        State.BunnyHopSpeedConn:Disconnect()
-        State.BunnyHopSpeedConn = nil
-    end
     local hum = getHumanoid(LocalPlayer)
     if hum and State.OriginalWalkSpeed then
         hum.WalkSpeed = State.OriginalWalkSpeed
@@ -4419,21 +4417,10 @@ local function setupBunnyHop()
                 local state = hum:GetState()
                 if state == Enum.HumanoidStateType.Running
                 or state == Enum.HumanoidStateType.Landed
-                or state == Enum.HumanoidStateType.PlatformStanding then
+                or state == Enum.HumanoidStateType.PlatformStanding
+                or state == Enum.HumanoidStateType.Climbing then
                     hum:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
-            end
-        end)
-        State.BunnyHopSpeedConn = RunService.Heartbeat:Connect(function()
-            local hum = getHumanoid(LocalPlayer)
-            if not hum or hum.Health <= 0 then return end
-            local baseSpeed = State.OriginalWalkSpeed or hum.WalkSpeed
-            local inAir = hum:GetState() == Enum.HumanoidStateType.Freefall
-                or hum:GetState() == Enum.HumanoidStateType.Jumping
-            if inAir and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                hum.WalkSpeed = baseSpeed * 1.08
-            else
-                hum.WalkSpeed = baseSpeed
             end
         end)
     end
@@ -5809,7 +5796,7 @@ showOnboarding = function(onComplete)
         {
             icon = "🔥",
             title = "DAYI HUB",
-            subtitle = "v10.3 — Premium Utility Hub",
+            subtitle = "v10.4 — Premium Utility Hub",
             body = "Thanks for installing DAYI HUB! This quick tour will show you the essentials. You can always replay this intro from Settings.",
             accent = Colors.Purple,
         },
@@ -6290,7 +6277,7 @@ local function showLoadingScreen(onComplete)
     makeTextLabel(versionBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "v10.2",
+        Text = "v10.4",
         TextColor3 = Colors.Purple,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Center,
@@ -6733,6 +6720,154 @@ local function showWelcomeBackNotification(onComplete)
     end)
 end
 
+--==========================================================================
+-- DEVICE SELECTOR
+--==========================================================================
+local function showDeviceSelector(onComplete)
+    local selectorGui = Instance.new("ScreenGui")
+    selectorGui.Name = "DAYI_DeviceSelector"
+    selectorGui.ResetOnSpawn = false
+    selectorGui.IgnoreGuiInset = true
+    selectorGui.DisplayOrder = 9999
+    pcall(function() selectorGui.Parent = CoreGui end)
+    if selectorGui.Parent == nil then
+        selectorGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    local bg = makeFrame(selectorGui, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Colors.Bg,
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+    })
+
+    local card = makeFrame(bg, {
+        Size = UDim2.new(0, 420, 0, 320),
+        Position = UDim2.new(0.5, -210, 0.5, -160),
+        BackgroundColor3 = Colors.Card,
+        BorderSizePixel = 0,
+    })
+    makeUICorner(card, 14)
+    makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(card, Colors.Purple, 1.5, 0.3)
+
+    local logoGlow = makeGlow(card, Colors.Purple, UDim2.new(0, 60, 0, 60), UDim2.new(0.5, -30, 0, 24), 0.85)
+    addGlowPulse(logoGlow, 0.8, 0.1, 2.5)
+
+    local logoCircle = makeFrame(card, {
+        Size = UDim2.new(0, 44, 0, 44),
+        Position = UDim2.new(0.5, -22, 0, 32),
+        BackgroundColor3 = Color3.fromRGB(100, 40, 200),
+    })
+    makeUICorner(logoCircle, 22)
+    makeUIGradient(logoCircle, Color3.fromRGB(120, 50, 220), Color3.fromRGB(80, 30, 160), 135)
+    makeUIStroke(logoCircle, Colors.PurpleBright, 1, 0.3)
+    makeTextLabel(logoCircle, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "🔥",
+        TextColor3 = Colors.White,
+        TextSize = 22,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    makeTextLabel(card, {
+        Size = UDim2.new(1, 0, 0, 24),
+        Position = UDim2.new(0, 0, 0, 88),
+        BackgroundTransparency = 1,
+        Text = "DAYI SCRIPT HUB",
+        TextColor3 = Colors.Text,
+        TextSize = 18,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(card, {
+        Size = UDim2.new(1, 0, 0, 18),
+        Position = UDim2.new(0, 0, 0, 112),
+        BackgroundTransparency = 1,
+        Text = "Which device are you using?",
+        TextColor3 = Colors.TextDim,
+        TextSize = 13,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local function makeChoiceButton(yOffset, icon, label, sublabel, accentColor, mode)
+        local btn = makeButton(card, {
+            Size = UDim2.new(1, -40, 0, 64),
+            Position = UDim2.new(0, 20, 0, yOffset),
+            BackgroundColor3 = Colors.Panel,
+            Text = "",
+            TextColor3 = Colors.Text,
+            TextSize = 14,
+            Font = Enum.Font.SourceSansBold,
+            AutoButtonColor = true,
+        })
+        makeUICorner(btn, 10)
+        makeUIStroke(btn, accentColor, 1, 0.6)
+
+        local iconLabel = makeTextLabel(btn, {
+            Size = UDim2.new(0, 40, 1, 0),
+            BackgroundTransparency = 1,
+            Text = icon,
+            TextColor3 = accentColor,
+            TextSize = 26,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        makeTextLabel(btn, {
+            Size = UDim2.new(1, -56, 0, 22),
+            Position = UDim2.new(0, 48, 0, 12),
+            BackgroundTransparency = 1,
+            Text = label,
+            TextColor3 = Colors.Text,
+            TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeTextLabel(btn, {
+            Size = UDim2.new(1, -56, 0, 16),
+            Position = UDim2.new(0, 48, 0, 36),
+            BackgroundTransparency = 1,
+            Text = sublabel,
+            TextColor3 = Colors.TextDim,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+
+        btn.MouseEnter:Connect(function()
+            playSpringTween(btn, {BackgroundColor3 = Colors.CardHov}, "elastic", 0.2)
+        end)
+        btn.MouseLeave:Connect(function()
+            playSpringTween(btn, {BackgroundColor3 = Colors.Panel}, "elastic", 0.2)
+        end)
+        btn.MouseButton1Click:Connect(function()
+            addRippleClick(btn, accentColor)
+            Config.DeviceMode = mode
+            saveConfig()
+            TweenService:Create(card, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                BackgroundTransparency = 1,
+            }):Play()
+            task.delay(0.25, function()
+                selectorGui:Destroy()
+                onComplete()
+            end)
+        end)
+
+        return btn
+    end
+
+    makeChoiceButton(150, "🖥️", "PC", "Full-size interface with all features", Colors.PurpleBright, "pc")
+    makeChoiceButton(224, "📱", "Mobile", "Compact, touch-optimized interface", Colors.Green, "mobile")
+
+    -- Entrance animation
+    card.Size = UDim2.new(0, 380, 0, 280)
+    card.Position = UDim2.new(0.5, -190, 0.5, -140)
+    TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 420, 0, 320),
+        Position = UDim2.new(0.5, -210, 0.5, -160),
+    }):Play()
+end
+
 local function init()
     -- Read plan from key system
     if _G.DAYI_HUB_PLAN then
@@ -6770,8 +6905,14 @@ local function init()
         buildPages()
 
         if MainFrameScale then
-            MainFrameScale.Scale = 0.85
-            TweenService:Create(MainFrameScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+            local targetScale = 1
+            if Config.DeviceMode == "mobile" then
+                local vp = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
+                targetScale = math.min((vp.X - 30) / 1040, (vp.Y - 30) / 640, 1)
+                targetScale = math.max(targetScale, 0.4)
+            end
+            MainFrameScale.Scale = targetScale * 0.85
+            TweenService:Create(MainFrameScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = targetScale}):Play()
         end
 
         -- Apply defaults
@@ -6805,25 +6946,31 @@ local function init()
 
         applyAccentTheme(Config.AccentTheme)
         local planInfo = PlanDisplay[UserPlan] or PlanDisplay.free
-        notify("DAYI HUB v10.2", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
+        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
-        print("[DAYI HUB] v10.2 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
+        print("[DAYI HUB] v10.4 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
         print("[DAYI HUB] Discord: discord.gg/QFwWBWM2j")
     end
 
-    -- Show warning UI first, then loading screen, then onboarding (if first launch) or main UI
+    local function continueAfterLoading()
+        if Config.FirstLaunch then
+            showOnboarding(buildMainUI)
+        else
+            buildMainUI()
+            task.delay(0.5, function()
+                showWelcomeBackNotification()
+            end)
+        end
+    end
+
     showWarningUI(function()
         showLoadingScreen(function()
-            if Config.FirstLaunch then
-                showOnboarding(buildMainUI)
+            if not Config.DeviceMode then
+                showDeviceSelector(continueAfterLoading)
             else
-                buildMainUI()
-                -- Returning user: show animated welcome-back notification (UI stays open)
-                task.delay(0.5, function()
-                    showWelcomeBackNotification()
-                end)
+                continueAfterLoading()
             end
         end)
     end)
