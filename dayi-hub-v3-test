@@ -25,10 +25,14 @@ local StarterGui         = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera      = Workspace.CurrentCamera
 local IsMobileDevice = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local MobileUIScale = IsMobileDevice and 0.5 or 1
+local MobileUIScale = IsMobileDevice and 0.6 or 1
 
-local function applyMobileUIScale(guiObject)
+local function applyMobileUIScale(guiObject, centerOnMobile)
     if MobileUIScale == 1 then return end
+    if centerOnMobile then
+        guiObject.AnchorPoint = Vector2.new(0.5, 0.5)
+        guiObject.Position = UDim2.new(0.5, 0, 0.5, 0)
+    end
     local scale = Instance.new("UIScale")
     scale.Name = "DAYI_MobileUIScale"
     scale.Scale = MobileUIScale
@@ -1416,7 +1420,8 @@ local function buildGUI()
     -- Main container
     MainFrame = makeFrame(ScreenGui, {
         Size = UDim2.new(0, 1040, 0, 640),
-        Position = UDim2.new(0.5, -520, 0.5, -320),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
         Visible = true,
@@ -4876,7 +4881,7 @@ local function showWarningUI(onAccept)
         ClipsDescendants = false,
     })
     makeUICorner(card, 20)
-    applyMobileUIScale(card)
+    applyMobileUIScale(card, true)
 
     -- Card gradient background
     local cardGrad = Instance.new("UIGradient")
@@ -5582,7 +5587,7 @@ showOnboarding = function(onComplete)
         ZIndex = 10,
     })
     makeUICorner(card, 18)
-    applyMobileUIScale(card)
+    applyMobileUIScale(card, true)
     local cardGrad = Instance.new("UIGradient")
     cardGrad.Color = ColorSequence.new(Colors.BgGrad1, Colors.BgGrad2)
     cardGrad.Rotation = 145
@@ -6113,7 +6118,7 @@ local function showLoadingScreen(onComplete)
         ZIndex = 10,
     })
     makeUICorner(card, 18)
-    applyMobileUIScale(card)
+    applyMobileUIScale(card, true)
 
     -- Gradient background on card
     local cardGrad = Instance.new("UIGradient")
@@ -6763,7 +6768,7 @@ local function showDeviceSelector(onComplete)
         BorderSizePixel = 0,
     })
     makeUICorner(card, 14)
-    applyMobileUIScale(card)
+    applyMobileUIScale(card, true)
     makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
     makeUIStroke(card, Colors.Purple, 1.5, 0.3)
 
