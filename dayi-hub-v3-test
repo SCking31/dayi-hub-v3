@@ -87,6 +87,7 @@ local Config = {
     BackgroundParticles  = true,
     ParticleLevel        = 60,
     DeviceMode           = nil,  -- "pc" or "mobile", set by device selector
+    MobileToggleLogoFile = "DAYI_MobileLogo.png",
 }
 
 --==========================================================================
@@ -251,6 +252,29 @@ local function keyNameToKeyCode(name)
         end
     end
     return nil
+end
+
+local function resolveMobileToggleLogo()
+    if not IsMobileDevice then return "" end
+
+    local candidates = {
+        Config.MobileToggleLogoFile,
+        "9dc7087e-746f-4a6b-8b84-b6d05ebf0962_1787053937717.png",
+        "attached_assets/9dc7087e-746f-4a6b-8b84-b6d05ebf0962_1787053937717.png",
+    }
+
+    if type(getcustomasset) == "function" then
+        for _, filePath in ipairs(candidates) do
+            if type(filePath) == "string" and filePath ~= "" then
+                local ok, assetId = pcall(getcustomasset, filePath)
+                if ok and type(assetId) == "string" and assetId ~= "" then
+                    return assetId
+                end
+            end
+        end
+    end
+
+    return ""
 end
 
 local NotificationContainer
@@ -937,6 +961,7 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         Size = UDim2.new(1, -120, 0, 6),
         Position = UDim2.new(0, 64, 0, 48),
         BackgroundColor3 = Color3.fromRGB(35, 35, 50),
+        Active = true,
     })
     makeUICorner(track, 3)
 
@@ -988,7 +1013,8 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
     end
 
     track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             updateValue(input.Position.X)
             -- Knob scale punch on grab
@@ -997,12 +1023,14 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
             updateValue(input.Position.X)
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch) then
             dragging = false
             -- Knob scale release
             playSpringTween(knob, {Size = UDim2.new(0, 14, 0, 14)}, "elastic", 0.3)
@@ -1375,6 +1403,7 @@ end
 local ScreenGui
 local MainFrame
 local MainFrameScale
+local toggleUIVisibility
 local showOnboarding
 local ContentArea
 local PageFrames = {}
@@ -1412,9 +1441,49 @@ local function buildGUI()
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.IgnoreGuiInset = true
+    ScreenGui.DisplayOrder = 999
     pcall(function() ScreenGui.Parent = CoreGui end)
     if ScreenGui.Parent == nil then
         ScreenGui.Parent = LocalPlayer.PlayerGui
+    end
+
+    -- Mobile floating logo toggle. It stays visible while the main UI is hidden.
+    if IsMobileDevice then
+        local mobileToggleButton = Instance.new("ImageButton")
+        mobileToggleButton.Name = "DAYI_MobileToggle"
+        mobileToggleButton.Size = UDim2.new(0, 58, 0, 58)
+        mobileToggleButton.Position = UDim2.new(0, 16, 1, -104)
+        mobileToggleButton.AnchorPoint = Vector2.new(0, 1)
+        mobileToggleButton.BackgroundColor3 = Color3.fromRGB(12, 8, 24)
+        mobileToggleButton.BackgroundTransparency = 0.08
+        mobileToggleButton.BorderSizePixel = 0
+        mobileToggleButton.AutoButtonColor = false
+        mobileToggleButton.Active = true
+        mobileToggleButton.ClipsDescendants = true
+        mobileToggleButton.ScaleType = Enum.ScaleType.Crop
+        mobileToggleButton.ZIndex = 50
+        mobileToggleButton.Image = resolveMobileToggleLogo()
+        mobileToggleButton.Parent = ScreenGui
+        makeUICorner(mobileToggleButton, 12)
+        makeUIStroke(mobileToggleButton, Colors.PurpleBright, 2, 0.15)
+
+        local mobileToggleFallback = makeTextLabel(mobileToggleButton, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "D",
+            TextColor3 = Colors.PurpleBright,
+            TextSize = 30,
+            Font = Enum.Font.SourceSansBold,
+            ZIndex = 51,
+        })
+        mobileToggleFallback.Visible = mobileToggleButton.Image == ""
+
+        mobileToggleButton.Activated:Connect(function()
+            addRippleClick(mobileToggleButton, Colors.PurpleBright)
+            if toggleUIVisibility then
+                toggleUIVisibility()
+            end
+        end)
     end
 
     -- Main container
@@ -1694,7 +1763,10 @@ local function buildGUI()
     winCtrlClose.MouseButton1Click:Connect(function()
         addRippleClick(winCtrlClose, Colors.Red)
         animateClose()
-        notify("DAYI HUB", "UI hidden. Press RightShift to toggle.", 3)
+        local reopenHint = IsMobileDevice
+            and "Tap the DAYI logo button to reopen."
+            or ("Press " .. Config.UIToggleKey .. " to toggle.")
+        notify("DAYI HUB", "UI hidden. " .. reopenHint, 3)
     end)
     winCtrlMin.MouseButton1Click:Connect(function()
         addRippleClick(winCtrlMin, Colors.PurpleBright)
@@ -4574,25 +4646,35 @@ end
 --==========================================================================
 -- UI TOGGLE KEY (RightShift)
 --==========================================================================
+toggleUIVisibility = function()
+    State.UIVisible = not State.UIVisible
+    if not MainFrame or not MainFrameScale then return end
+
+    if State.UIVisible then
+        MainFrameScale.Scale = MobileUIScale * 0.85
+        MainFrame.Visible = true
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Scale = MobileUIScale,
+        }):Play()
+    else
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Scale = MobileUIScale * 0.7,
+        }):Play()
+        task.delay(0.2, function()
+            if not State.UIVisible and MainFrame then
+                MainFrame.Visible = false
+                MainFrameScale.Scale = MobileUIScale
+            end
+        end)
+    end
+end
+
 local function setupUIToggle()
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         local kc = keyNameToKeyCode(Config.UIToggleKey)
         if kc and input.KeyCode == kc then
-            State.UIVisible = not State.UIVisible
-            if MainFrame and MainFrameScale then
-                if State.UIVisible then
-                    MainFrameScale.Scale = MobileUIScale * 0.85
-                    MainFrame.Visible = true
-                    TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = MobileUIScale}):Play()
-                else
-                    TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = MobileUIScale * 0.7}):Play()
-                    task.delay(0.2, function()
-                        MainFrame.Visible = false
-                        MainFrameScale.Scale = MobileUIScale
-                    end)
-                end
-            end
+            toggleUIVisibility()
         end
     end)
 end
@@ -6963,7 +7045,10 @@ local function init()
 
         applyAccentTheme(Config.AccentTheme)
         local planInfo = PlanDisplay[UserPlan] or PlanDisplay.free
-        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
+        local toggleHint = IsMobileDevice
+            and "Tap the DAYI logo button to toggle UI."
+            or ("Press " .. Config.UIToggleKey .. " to toggle UI.")
+        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! " .. toggleHint, 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
