@@ -7,6 +7,7 @@ local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
 local CoreGui          = game:GetService("CoreGui")
 local RunService       = game:GetService("RunService")
+local HttpService      = game:GetService("HttpService")
 local LocalPlayer      = Players.LocalPlayer
 
 --==== VALID KEYS ====--
@@ -18,6 +19,8 @@ local VALID_KEYS = {
 
 --==== MAIN SCRIPT LOADER ====--
 local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/SCking31/dayi-hub-v3/refs/heads/main/dayi-hub-v3"
+local KEY_CACHE_DURATION = 3 * 24 * 60 * 60
+local KEY_CACHE_FILE = "dayi_key_cache_" .. tostring(LocalPlayer.UserId) .. ".json"
 
 local function loadMainScript(plan)
     _G.DAYI_HUB_PLAN = plan or "free"
@@ -27,6 +30,36 @@ local function loadMainScript(plan)
     if not ok then
         warn("[DAYI HUB] Failed to load main script: " .. tostring(result))
     end
+    return ok
+end
+
+local function getCachedPlan()
+    local cachedPlan
+    pcall(function()
+        if not isfile(KEY_CACHE_FILE) then return end
+
+        local saved = HttpService:JSONDecode(readfile(KEY_CACHE_FILE))
+        if type(saved) ~= "table" then return end
+        if type(saved.plan) ~= "string" or type(saved.expiresAt) ~= "number" then return end
+
+        if saved.expiresAt > os.time() then
+            cachedPlan = saved.plan
+        else
+            pcall(function()
+                if delfile then delfile(KEY_CACHE_FILE) end
+            end)
+        end
+    end)
+    return cachedPlan
+end
+
+local function saveCachedPlan(plan)
+    pcall(function()
+        writefile(KEY_CACHE_FILE, HttpService:JSONEncode({
+            plan = plan or "free",
+            expiresAt = os.time() + KEY_CACHE_DURATION,
+        }))
+    end)
 end
 
 --==== COLORS ====--
@@ -747,7 +780,9 @@ local function showKeyUI()
                     TweenService:Create(dim, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
                     task.wait(0.35)
                     keyGui:Destroy()
-                    loadMainScript(plan)
+                    if loadMainScript(plan) then
+                        saveCachedPlan(plan)
+                    end
                 end)
             else
                 submitted = false
@@ -783,4 +818,11 @@ local function showKeyUI()
 end
 
 --==== START ====--
-showKeyUI()
+local cachedPlan = getCachedPlan()
+if cachedPlan then
+    if not loadMainScript(cachedPlan) then
+        showKeyUI()
+    end
+else
+    showKeyUI()
+end
