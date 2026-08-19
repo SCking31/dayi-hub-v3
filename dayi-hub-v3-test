@@ -84,6 +84,7 @@ local Config = {
     TeamCheck          = false,
     VisibilityCheck    = false,
     FirstLaunch         = true,
+    WarningAcknowledged = false,
     BackgroundParticles  = true,
     ParticleLevel        = 60,
     DeviceMode           = nil,  -- "pc" or "mobile", set by device selector
@@ -1413,6 +1414,7 @@ local activeTab = nil
 local buildPages  -- forward declaration so the Reload UI closure can call it
 local createColorPickerRow  -- forward declaration so buildPremiumPage can call it
 local toggleRGBAccent  -- forward declaration so buildPremiumPage can call it
+local showWarningUI  -- forward declaration so Quick Actions can replay it
 
 local function destroyOldGui()
     local old = CoreGui:FindFirstChild("DAYI_HUB")
@@ -1466,6 +1468,7 @@ local function buildGUI()
         mobileToggleButton.Parent = ScreenGui
         makeUICorner(mobileToggleButton, 12)
         makeUIStroke(mobileToggleButton, Colors.PurpleBright, 2, 0.15)
+        addRippleClick(mobileToggleButton, Colors.PurpleBright)
 
         local mobileToggleFallback = makeTextLabel(mobileToggleButton, {
             Size = UDim2.new(1, 0, 1, 0),
@@ -1479,7 +1482,6 @@ local function buildGUI()
         mobileToggleFallback.Visible = mobileToggleButton.Image == ""
 
         mobileToggleButton.Activated:Connect(function()
-            addRippleClick(mobileToggleButton, Colors.PurpleBright)
             if toggleUIVisibility then
                 toggleUIVisibility()
             end
@@ -2238,7 +2240,7 @@ local function buildGUI()
 
     -- Quick Actions card
     local qaCard = makeFrame(rightPanel, {
-        Size = UDim2.new(1, -28, 0, 132),
+        Size = UDim2.new(1, -28, 0, 204),
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(qaCard, 10)
@@ -2278,6 +2280,13 @@ local function buildGUI()
             if MainFrame then MainFrame.Visible = false end
             showOnboarding(function()
                 if MainFrame then MainFrame.Visible = true end
+            end)
+        end },
+        { text = "⚠️  Replay Warning", filled = false, action = function()
+            notify("DAYI HUB", "Replaying warning screen...", 2)
+            task.wait(0.25)
+            showWarningUI(function()
+                notify("DAYI HUB", "Warning accepted.", 2)
             end)
         end },
     }
@@ -4805,7 +4814,7 @@ getgenv().DayiHub = DayiHub
 --==========================================================================
 -- INIT
 --==========================================================================
-local function showWarningUI(onAccept)
+showWarningUI = function(onAccept)
     local oldWarn = CoreGui:FindFirstChild("DAYI_HUB_WARNING")
     if oldWarn then oldWarn:Destroy() end
     local oldWarn2 = LocalPlayer.PlayerGui:FindFirstChild("DAYI_HUB_WARNING")
@@ -5551,6 +5560,8 @@ local function showWarningUI(onAccept)
             return
         end
         closeWarning()
+        Config.WarningAcknowledged = true
+        saveConfig()
         onAccept()
     end)
     exitBtn.MouseButton1Click:Connect(closeWarning)
@@ -7067,7 +7078,7 @@ local function init()
         end
     end
 
-    showWarningUI(function()
+    local function continueAfterWarning()
         showLoadingScreen(function()
             if not Config.DeviceMode then
                 showDeviceSelector(continueAfterLoading)
@@ -7075,7 +7086,13 @@ local function init()
                 continueAfterLoading()
             end
         end)
-    end)
+    end
+
+    if Config.WarningAcknowledged then
+        continueAfterWarning()
+    else
+        showWarningUI(continueAfterWarning)
+    end
 end
 
 init()
