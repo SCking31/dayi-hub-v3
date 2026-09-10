@@ -27,6 +27,24 @@ local Camera      = Workspace.CurrentCamera
 local IsMobileDevice = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local MobileUIScale = IsMobileDevice and 0.6 or 1
 
+--==========================================================================
+-- LIVE FPS TRACKER (counts real rendered frames)
+--==========================================================================
+local FPSTracker = { current = 0 }
+do
+    local frames = 0
+    local elapsed = 0
+    RunService.RenderStepped:Connect(function(dt)
+        frames = frames + 1
+        elapsed = elapsed + dt
+        if elapsed >= 0.5 then
+            FPSTracker.current = math.floor((frames / elapsed) + 0.5)
+            frames = 0
+            elapsed = 0
+        end
+    end)
+end
+
 local function applyMobileUIScale(guiObject, centerOnMobile)
     if MobileUIScale == 1 then return end
     if centerOnMobile then
@@ -2015,6 +2033,7 @@ local function buildGUI()
         { name = "Premium",  icon = "👑", badge = "NEW", premiumOnly = true },
         { name = "Misc",     icon = "🧩" },
         { name = "Configs",  icon = "🗂️" },
+        { name = "AI (WIP)", icon = "🤖" },
         { name = "Settings",  icon = "⚙️" },
         { name = "Changelog", icon = "📝" },
         { name = "Credits",   icon = "🩷" },
@@ -2378,16 +2397,10 @@ local function buildGUI()
     sysValLabels.place.Text = (placeOk and type(placeName) == "string") and placeName or "Roblox"
 
     task.spawn(function()
-        local fpsFrames = 0
-        local fpsAccum = 0
         while rightPanel and rightPanel.Parent do
-            local dt = task.wait(1)
-            if dt > 0 then
-                fpsAccum = fpsAccum + (1 / dt)
-                fpsFrames = fpsFrames + 1
-            end
-            if fpsFrames >= 1 then
-                local avgFps = math.floor(fpsAccum / fpsFrames)
+            task.wait(1)
+            do
+                local avgFps = FPSTracker.current
                 if sysValLabels.fps then
                     sysValLabels.fps.Text = avgFps .. " FPS"
                     if avgFps >= 50 then
@@ -2398,8 +2411,6 @@ local function buildGUI()
                         sysValLabels.fps.TextColor3 = Colors.Red
                     end
                 end
-                fpsAccum = 0
-                fpsFrames = 0
             end
             local pingOk, pingVal = pcall(function() return LocalPlayer:GetNetworkPing() end)
             if pingOk and type(pingVal) == "number" then
@@ -2610,16 +2621,10 @@ local function buildGUI()
     })
 
     task.spawn(function()
-        local fpsFrames = 0
-        local fpsAccum = 0
         while statusBar and statusBar.Parent do
-            local dt = task.wait(1)
-            if dt > 0 then
-                fpsAccum = fpsAccum + (1 / dt)
-                fpsFrames = fpsFrames + 1
-            end
-            if fpsFrames >= 1 then
-                local avgFps = math.floor(fpsAccum / fpsFrames)
+            task.wait(1)
+            do
+                local avgFps = FPSTracker.current
                 if statusValLabels.fps then
                     statusValLabels.fps.Text = avgFps .. " FPS"
                     if avgFps >= 50 then
@@ -2630,8 +2635,6 @@ local function buildGUI()
                         statusValLabels.fps.TextColor3 = Colors.Red
                     end
                 end
-                fpsAccum = 0
-                fpsFrames = 0
             end
             local pingOk, pingVal = pcall(function() return LocalPlayer:GetNetworkPing() end)
             if pingOk and type(pingVal) == "number" and statusValLabels.ping then
@@ -2684,6 +2687,333 @@ local function createScrollContent(page, topOffset)
     padding.PaddingBottom = UDim.new(0, 10)
     padding.Parent = scroll
     return scroll
+end
+
+--==========================================================================
+-- AI (WIP) PAGE
+--==========================================================================
+local AIHelpMenu = table.concat({
+    "You can ask me these questions:",
+    "",
+    "• /help what will be added in the next update?",
+    "• /help what can you do?",
+    "• /help how do I save my settings?",
+    "• /help how many config slots do I get?",
+    "• /help what does Premium give me?",
+    "• /help does it work on mobile?",
+    "• /help what is the Discord server?",
+    "• /help something is not working",
+    "• /help who are you?",
+    "• /help what about owner?",
+    "• /help how do I open and close the UI?",
+    "• /help how does the aimbot work?",
+    "• /help is this safe / can I get banned?",
+    "• /help how do I boost my FPS?",
+    "• /help what is ESP?",
+    "• /help how do I change the theme?",
+    "• /help what version is this?",
+    "• /help how do I replay the intro?",
+}, "\n")
+
+local AIHelpResponses = {
+    {
+        keywords = {"what about owner", "about owner", "about the owner", "tell me about owner", "owner info"},
+        response = "He is 15 years old and doing all of this solo... yeah, I know, he's crazy.",
+    },
+    {
+        keywords = {"safe", "ban", "banned", "detected", "risk"},
+        response = "Nothing is 100% safe. Use it on alt accounts, keep the risky features off, and don't blame me if Roblox gets angry.",
+    },
+    {
+        keywords = {"boost fps", "more fps", "lag", "low fps", "performance"},
+        response = "Open the Graphics tab and turn on FPS Booster, Particle Remover, and Shadow Remover. Texture and Grass Optimizer help too.",
+    },
+    {
+        keywords = {"esp", "wallhack", "see players"},
+        response = "ESP draws players through walls. Wallhack, Skeleton, Box, and Name ESP are all in the Combat tab.",
+    },
+    {
+        keywords = {"theme", "color", "accent", "rgb"},
+        response = "Go to the Themes tab to pick an accent color, or turn on RGB Accent Mode for an animated rainbow theme.",
+    },
+    {
+        keywords = {"version", "build", "which version"},
+        response = "This is DAYI SCRIPT HUB v10.4, made by syfix.",
+    },
+    {
+        keywords = {"open ui", "close ui", "hide ui", "toggle ui", "reopen"},
+        response = "On PC press " .. "RightShift" .. " (or your custom key from Settings). On mobile tap the floating DAYI logo button.",
+    },
+    {
+        keywords = {"replay intro", "intro again", "show warning again", "reset intro"},
+        response = "Use the Quick Actions panel on the right side to replay the intro or the warning screen.",
+    },
+    {
+        keywords = {"fps counter", "fps show", "where is fps"},
+        response = "Live FPS and ping are shown in the bottom status bar and in the System Information card on the right panel.",
+    },
+    {
+        keywords = {"next update", "adding in next", "coming next", "future update"},
+        response = "No idea, my owner is crazy... I never know what he's going to do next.",
+    },
+    {
+        keywords = {"what can you do", "how do i use you", "how to use ai", "commands"},
+        response = "Use /help followed by a question. I can answer a few DAYI HUB questions for now.",
+    },
+    {
+        keywords = {"config", "save settings", "load settings"},
+        response = "Open the Configs tab to save, load, or delete named hub configurations.",
+    },
+    {
+        keywords = {"how many config", "config limit", "config slot"},
+        response = "Free users get 3 configs, Premium users get 10, and Developers get unlimited configs.",
+    },
+    {
+        keywords = {"premium", "premium features", "upgrade"},
+        response = "Premium unlocks the Premium tab and gives you more config slots. Check the Premium tab for details.",
+    },
+    {
+        keywords = {"mobile", "phone", "touch"},
+        response = "The hub supports mobile layouts. Use the floating DAYI button to reopen the UI after hiding it.",
+    },
+    {
+        keywords = {"discord", "server link"},
+        response = "You can find the Discord invite in the Credits tab. The Join button also copies the invite link.",
+    },
+    {
+        keywords = {"bug", "error", "not working", "broken"},
+        response = "Try reloading the UI first. If the problem remains, describe what happened and check the Credits tab for support.",
+    },
+    {
+        keywords = {"who are you", "what are you"},
+        response = "I'm the DAYI HUB local helper. I'm still WIP, so my brain is currently a small list of prepared answers.",
+    },
+    {
+        keywords = {"owner", "who made you", "creator"},
+        response = "My owner made DAYI HUB and apparently decided I should answer questions instead of getting a real brain.",
+    },
+    {
+        keywords = {"warning", "intro", "onboarding"},
+        response = "You can replay the intro or warning screen from the Quick Actions panel on the right.",
+    },
+    {
+        keywords = {"aimbot", "fov", "circle"},
+        response = "Aimbot and FOV-related controls are available in the Player tab when the corresponding features are enabled.",
+    },
+}
+
+local function normalizeAIQuestion(text)
+    local normalized = string.lower(tostring(text or ""))
+    normalized = normalized:gsub("^%s+", ""):gsub("%s+$", "")
+    normalized = normalized:gsub("^/help%s*", "")
+    normalized = normalized:gsub("[%p]", " ")
+    normalized = normalized:gsub("%s+", " ")
+    return normalized
+end
+
+local function getAIHelpResponse(input)
+    local raw = tostring(input or "")
+    local trimmed = raw:gsub("^%s+", ""):gsub("%s+$", "")
+    local lower = string.lower(trimmed)
+
+    if string.sub(lower, 1, 5) ~= "/help"
+        or (string.len(lower) > 5 and not string.match(lower, "^/help%s")) then
+        return "Only messages that start with /help are processed. Example: /help what can you do?"
+    end
+
+    local question = normalizeAIQuestion(trimmed)
+    if question == ""
+        or question == "help"
+        or question == "list"
+        or question == "questions"
+        or question == "menu" then
+        return AIHelpMenu
+    end
+
+    for _, entry in ipairs(AIHelpResponses) do
+        for _, keyword in ipairs(entry.keywords) do
+            if string.find(question, keyword, 1, true) then
+                return entry.response
+            end
+        end
+    end
+
+    return "I don't have an answer for that one yet. Type just /help to see the full list of questions I can answer."
+end
+
+local function buildAIPage()
+    local page = createPageContainer("AI (WIP)")
+    createPageHeader(page, "🤖", "AI (WIP)", "Ask the local DAYI helper with /help.", Colors.Cyan)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 8)
+
+    local introCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 72),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(introCard, 10)
+    makeUIGradient(introCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(introCard, Colors.Cyan, 1, 0.78)
+    makeTextLabel(introCard, {
+        Size = UDim2.new(0, 38, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "💬",
+        TextColor3 = Colors.Cyan,
+        TextSize = 23,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(introCard, {
+        Size = UDim2.new(1, -64, 0, 20),
+        Position = UDim2.new(0, 52, 0, 12),
+        BackgroundTransparency = 1,
+        Text = "Local response bot",
+        TextColor3 = Colors.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(introCard, {
+        Size = UDim2.new(1, -64, 0, 30),
+        Position = UDim2.new(0, 52, 0, 34),
+        BackgroundTransparency = 1,
+        Text = "This is a WIP bot with prepared answers. Send just /help to see every question I can answer.",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local inputCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 76),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(inputCard, 10)
+    makeUIGradient(inputCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(inputCard, Colors.Cyan, 1, 0.82)
+
+    local questionInput = Instance.new("TextBox")
+    questionInput.Name = "AIQuestionInput"
+    questionInput.Parent = inputCard
+    questionInput.Size = UDim2.new(1, -118, 0, 38)
+    questionInput.Position = UDim2.new(0, 12, 0.5, -19)
+    questionInput.BackgroundColor3 = Colors.InputBg
+    questionInput.BorderSizePixel = 0
+    questionInput.ClearTextOnFocus = false
+    questionInput.MultiLine = false
+    questionInput.PlaceholderText = "/help  (send it alone to list all questions)"
+    questionInput.PlaceholderColor3 = Colors.TextFaint
+    questionInput.Text = ""
+    questionInput.TextColor3 = Colors.Text
+    questionInput.TextSize = 12
+    questionInput.TextXAlignment = Enum.TextXAlignment.Left
+    questionInput.Font = Enum.Font.SourceSans
+    questionInput.ZIndex = 2
+    makeUICorner(questionInput, 8)
+    makeUIStroke(questionInput, Colors.Cyan, 1, 0.72)
+
+    local sendButton = makeButton(inputCard, {
+        Size = UDim2.new(0, 92, 0, 38),
+        Position = UDim2.new(1, -104, 0.5, -19),
+        BackgroundColor3 = Colors.Cyan,
+        Text = "Send  ➜",
+        TextColor3 = Colors.Bg,
+        TextSize = 12,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(sendButton, 8)
+    makeUIGradient(sendButton, Color3.fromRGB(80, 230, 245), Colors.Cyan, 135)
+    makeUIStroke(sendButton, Colors.White, 1, 0.65)
+
+    local answerCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 400),
+        BackgroundColor3 = Colors.Panel,
+    })
+    makeUICorner(answerCard, 10)
+    makeUIGradient(answerCard, Color3.fromRGB(20, 28, 34), Color3.fromRGB(12, 16, 22), 135)
+    makeUIStroke(answerCard, Colors.Cyan, 1, 0.65)
+
+    makeTextLabel(answerCard, {
+        Size = UDim2.new(1, -24, 0, 18),
+        Position = UDim2.new(0, 12, 0, 10),
+        BackgroundTransparency = 1,
+        Text = "AI response",
+        TextColor3 = Colors.Cyan,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    local questionLabel = makeTextLabel(answerCard, {
+        Size = UDim2.new(1, -24, 0, 18),
+        Position = UDim2.new(0, 12, 0, 32),
+        BackgroundTransparency = 1,
+        Text = "No question yet",
+        TextColor3 = Colors.TextFaint,
+        TextSize = 10,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+    local answerLabel = makeTextLabel(answerCard, {
+        Size = UDim2.new(1, -24, 0, 330),
+        Position = UDim2.new(0, 12, 0, 56),
+        BackgroundTransparency = 1,
+        Text = "Send /help on its own and I'll list every question I can answer.",
+        TextColor3 = Colors.Text,
+        TextSize = 12,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local exampleCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 58),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(exampleCard, 10)
+    makeUIStroke(exampleCard, Colors.Purple, 1, 0.84)
+    makeTextLabel(exampleCard, {
+        Size = UDim2.new(1, -24, 0, 16),
+        Position = UDim2.new(0, 12, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "Try these:",
+        TextColor3 = Colors.TextDim,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeTextLabel(exampleCard, {
+        Size = UDim2.new(1, -24, 0, 28),
+        Position = UDim2.new(0, 12, 0, 24),
+        BackgroundTransparency = 1,
+        Text = "/help   •   /help what will be added in the next update?   •   /help what about owner?",
+        TextColor3 = Colors.PurpleBright,
+        TextSize = 11,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local function submitQuestion()
+        local input = questionInput.Text
+        questionLabel.Text = input == "" and "No question yet" or input
+        answerLabel.Text = getAIHelpResponse(input)
+        if input ~= "" then
+            notify("AI (WIP)", "Response generated locally.", 2)
+        end
+    end
+
+    sendButton.MouseButton1Click:Connect(submitQuestion)
+    questionInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            submitQuestion()
+        end
+    end)
 end
 
 local function buildGraphicsPage()
@@ -3965,6 +4295,7 @@ buildPages = function()
     safeBuild("Premium",   buildPremiumPage)
     safeBuild("Misc",      buildMiscPage)
     safeBuild("Configs",   buildConfigsPage)
+    safeBuild("AI (WIP)",  buildAIPage)
     safeBuild("Settings",  buildSettingsPage)
     safeBuild("Changelog", buildChangelogPage)
     safeBuild("Credits",   buildCreditsPage)
