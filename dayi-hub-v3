@@ -24,6 +24,21 @@ local StarterGui         = game:GetService("StarterGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = Workspace.CurrentCamera
+local IsMobileDevice = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local MobileUIScale = IsMobileDevice and 0.6 or 1
+
+local function applyMobileUIScale(guiObject, centerOnMobile)
+    if MobileUIScale == 1 then return end
+    if centerOnMobile then
+        guiObject.AnchorPoint = Vector2.new(0.5, 0.5)
+        guiObject.Position = UDim2.new(0.5, 0, 0.5, 0)
+    end
+    local scale = Instance.new("UIScale")
+    scale.Name = "DAYI_MobileUIScale"
+    scale.Scale = MobileUIScale
+    scale.Parent = guiObject
+    return scale
+end
 
 --==========================================================================
 -- Config
@@ -33,6 +48,7 @@ local Config = {
     FPSBooster         = false,
     VFXRemover         = false,
     ParticleRemover     = false,
+    CutsceneRemover     = false,
     TextureOptimizer   = false,
     ShadowRemover      = false,
     LightOptimizer     = false,
@@ -54,6 +70,7 @@ local Config = {
     SpeedHack          = false,
     WalkSpeed          = 16,
     BunnyHop           = false,
+    AutoJump           = false,
     FlyMode            = false,
     FlySpeed           = 25,
     Noclip             = false,
@@ -69,9 +86,12 @@ local Config = {
     TeamCheck          = false,
     VisibilityCheck    = false,
     FirstLaunch         = true,
+    WarningAcknowledged = false,
     BackgroundParticles  = true,
     ParticleLevel        = 60,
+    UIScale              = 100,
     DeviceMode           = nil,  -- "pc" or "mobile", set by device selector
+    MobileToggleLogoFile = "DAYI_MobileLogo.png",
 }
 
 --==========================================================================
@@ -98,10 +118,62 @@ local PlanDisplay = {
 -- CONFIG PERSISTENCE
 --==========================================================================
 local ConfigFile = "dayi_hub_v10_config.json"
+local ConfigSlotsFile = "dayi_hub_v10_configs.json"
+local ConfigSlots = {}
+
+local function serializeConfigValue(value)
+    if typeof(value) == "Color3" then
+        return {
+            __dayiType = "Color3",
+            r = value.R,
+            g = value.G,
+            b = value.B,
+        }
+    elseif type(value) == "table" then
+        local copy = {}
+        for k, v in pairs(value) do
+            copy[k] = serializeConfigValue(v)
+        end
+        return copy
+    end
+    return value
+end
+
+local function deserializeConfigValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    if value.__dayiType == "Color3"
+        and type(value.r) == "number"
+        and type(value.g) == "number"
+        and type(value.b) == "number" then
+        return Color3.new(value.r, value.g, value.b)
+    end
+
+    local copy = {}
+    for k, v in pairs(value) do
+        copy[k] = deserializeConfigValue(v)
+    end
+    return copy
+end
+
+local function createConfigSnapshot()
+    local snapshot = {}
+    for key, value in pairs(Config) do
+        -- These values belong to the hub session, not to a saved feature preset.
+        if key ~= "FirstLaunch"
+            and key ~= "WarningAcknowledged"
+            and key ~= "DeviceMode" then
+            snapshot[key] = serializeConfigValue(value)
+        end
+    end
+    return snapshot
+end
 
 local function saveConfig()
     pcall(function()
-        local json = HttpService:JSONEncode(Config)
+        local json = HttpService:JSONEncode(serializeConfigValue(Config))
         writefile(ConfigFile, json)
     end)
 end
@@ -112,12 +184,91 @@ local function loadConfig()
             local json = readfile(ConfigFile)
             local saved = HttpService:JSONDecode(json)
             if saved and type(saved) == "table" then
-                for k, v in pairs(saved) do
-                    Config[k] = v
+                local restored = deserializeConfigValue(saved)
+                for k, v in pairs(restored) do
+                    if Config[k] ~= nil then
+                        Config[k] = v
+                    end
                 end
             end
         end
     end)
+end
+
+local function saveConfigSlots()
+    pcall(function()
+        local json = HttpService:JSONEncode(serializeConfigValue(ConfigSlots))
+        writefile(ConfigSlotsFile, json)
+    end)
+end
+
+local function loadConfigSlots()
+    ConfigSlots = {}
+    pcall(function()
+        if not isfile(ConfigSlotsFile) then return end
+        local json = readfile(ConfigSlotsFile)
+        local saved = HttpService:JSONDecode(json)
+        if type(saved) ~= "table" then return end
+
+        local restored = deserializeConfigValue(saved)
+        for _, slot in ipairs(restored) do
+            if type(slot) == "table"
+                and type(slot.name) == "string"
+                and type(slot.settings) == "table" then
+                ConfigSlots[#ConfigSlots + 1] = {
+                    name = slot.name,
+                    savedAt = tonumber(slot.savedAt) or os.time(),
+                    settings = slot.settings,
+                }
+            end
+        end
+    end)
+end
+
+local function getConfigLimit()
+    if UserPlan == "developer" then
+        return math.huge
+    elseif UserPlan == "premium" then
+        return 10
+    end
+    return 3
+end
+
+local function saveNamedConfig(rawName)
+    local name = tostring(rawName or ""):gsub("^%s*(.-)%s*$", "%1")
+    if name == "" then
+        name = "Config " .. tostring(#ConfigSlots + 1)
+    end
+    if #name > 32 then
+        name = name:sub(1, 32)
+    end
+
+    local existingIndex
+    for i, slot in ipairs(ConfigSlots) do
+        if string.lower(slot.name) == string.lower(name) then
+            existingIndex = i
+            break
+        end
+    end
+
+    if not existingIndex and #ConfigSlots >= getConfigLimit() then
+        return false, "Config limit reached for your plan."
+    end
+
+    local slot = {
+        name = name,
+        savedAt = os.time(),
+        settings = createConfigSnapshot(),
+    }
+
+    if existingIndex then
+        ConfigSlots[existingIndex] = slot
+    else
+        ConfigSlots[#ConfigSlots + 1] = slot
+    end
+
+    saveConfigSlots()
+    return true, existingIndex and "updated" or "created"
 end
 
 --==========================================================================
@@ -132,6 +283,7 @@ local State = {
     FlyBodyGyro         = nil,
     NoclipConnection    = nil,
     BunnyHopConnection  = nil,
+    AutoJumpConnection  = nil,
     InfiniteJumpConn    = nil,
     GodModeConnection   = nil,
     AntiRagdollConn     = nil,
@@ -151,6 +303,13 @@ local State = {
     ShadowBackup        = {},
     VFXConnection       = nil,
     ParticleConnection  = nil,
+    CutsceneConnection  = nil,
+    CutsceneGuiConnection = nil,
+    CutsceneGuiBackup   = {},
+    CutsceneGuiGuards   = {},
+    CutsceneScriptBackup = {},
+    CutsceneScriptGuards = {},
+    CutsceneCameraBackups = {},
     TextureConnection   = nil,
     GrassConnection     = nil,
     ShadowConnection    = nil,
@@ -236,6 +395,29 @@ local function keyNameToKeyCode(name)
         end
     end
     return nil
+end
+
+local function resolveMobileToggleLogo()
+    if not IsMobileDevice then return "" end
+
+    local candidates = {
+        Config.MobileToggleLogoFile,
+        "9dc7087e-746f-4a6b-8b84-b6d05ebf0962_1787053937717.png",
+        "attached_assets/9dc7087e-746f-4a6b-8b84-b6d05ebf0962_1787053937717.png",
+    }
+
+    if type(getcustomasset) == "function" then
+        for _, filePath in ipairs(candidates) do
+            if type(filePath) == "string" and filePath ~= "" then
+                local ok, assetId = pcall(getcustomasset, filePath)
+                if ok and type(assetId) == "string" and assetId ~= "" then
+                    return assetId
+                end
+            end
+        end
+    end
+
+    return ""
 end
 
 local NotificationContainer
@@ -344,6 +526,7 @@ local Colors = {
     Pink      = Color3.fromRGB(244, 114, 182),
     PinkGlow  = Color3.fromRGB(244, 114, 182),
     Cyan      = Color3.fromRGB(34, 211, 238),
+    Yellow    = Color3.fromRGB(250, 204, 21),
     CyanGlow  = Color3.fromRGB(34, 211, 238),
     Amber     = Color3.fromRGB(251, 191, 36),
     AmberGlow = Color3.fromRGB(251, 191, 36),
@@ -523,23 +706,34 @@ local function addHoverLift(guiObject, liftAmount, scaleAmount)
     end)
 end
 
+local function playRepeatingTween(guiObject, tweenInfo, props)
+    if not guiObject or not guiObject.Parent then return nil end
+    local tween = TweenService:Create(guiObject, tweenInfo, props)
+    local ancestryConnection
+    ancestryConnection = guiObject.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            pcall(function() tween:Cancel() end)
+            if ancestryConnection then
+                ancestryConnection:Disconnect()
+                ancestryConnection = nil
+            end
+        end
+    end)
+    tween:Play()
+    return tween
+end
+
 local function addGlowPulse(guiObject, baseTransparency, pulseAmount, speed)
     baseTransparency = baseTransparency or 0.9
     pulseAmount = pulseAmount or 0.05
     speed = speed or 2
     local period = 1 / speed
-    task.spawn(function()
-        while guiObject and guiObject.Parent do
-            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                BackgroundTransparency = baseTransparency - pulseAmount,
-            }):Play()
-            task.wait(period)
-            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                BackgroundTransparency = baseTransparency + pulseAmount,
-            }):Play()
-            task.wait(period)
-        end
-    end)
+    guiObject.BackgroundTransparency = baseTransparency
+    return playRepeatingTween(
+        guiObject,
+        TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        {BackgroundTransparency = baseTransparency - pulseAmount}
+    )
 end
 
 local function addFloatAnim(guiObject, amplitude, speed, offset)
@@ -548,18 +742,13 @@ local function addFloatAnim(guiObject, amplitude, speed, offset)
     offset = offset or 0
     local origY = guiObject.Position.Y.Offset
     local period = 1 / speed
-    task.spawn(function()
-        task.wait(offset / speed)
-        while guiObject and guiObject.Parent do
-            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                Position = UDim2.new(guiObject.Position.X.Scale, guiObject.Position.X.Offset, guiObject.Position.Y.Scale, origY - amplitude),
-            }):Play()
-            task.wait(period)
-            TweenService:Create(guiObject, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                Position = UDim2.new(guiObject.Position.X.Scale, guiObject.Position.X.Offset, guiObject.Position.Y.Scale, origY + amplitude),
-            }):Play()
-            task.wait(period)
-        end
+    task.delay(offset / speed, function()
+        if not guiObject or not guiObject.Parent then return end
+        playRepeatingTween(
+            guiObject,
+            TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {Position = UDim2.new(guiObject.Position.X.Scale, guiObject.Position.X.Offset, guiObject.Position.Y.Scale, origY - amplitude)}
+        )
     end)
 end
 
@@ -668,9 +857,10 @@ end
 --==========================================================================
 -- TOGGLE ROW (icon circle + label + toggle)
 --==========================================================================
-local function createToggleRow(parent, iconText, label, accentColor, defaultOn, onChange)
+local function createToggleRow(parent, iconText, label, accentColor, defaultOn, onChange, description)
+    local rowHeight = description and 68 or 56
     local row = makeFrame(parent, {
-        Size = UDim2.new(1, 0, 0, 56),
+        Size = UDim2.new(1, 0, 0, rowHeight),
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(row, 9)
@@ -703,8 +893,8 @@ local function createToggleRow(parent, iconText, label, accentColor, defaultOn, 
     })
 
     local nameLabel = makeTextLabel(row, {
-        Size = UDim2.new(1, -120, 1, 0),
-        Position = UDim2.new(0, 64, 0, 0),
+        Size = UDim2.new(1, -120, 0, description and 20 or rowHeight),
+        Position = UDim2.new(0, 64, 0, description and 8 or 0),
         BackgroundTransparency = 1,
         Text = label,
         TextColor3 = Colors.Text,
@@ -712,6 +902,20 @@ local function createToggleRow(parent, iconText, label, accentColor, defaultOn, 
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSansBold,
     })
+
+    if description then
+        makeTextLabel(row, {
+            Size = UDim2.new(1, -120, 0, 16),
+            Position = UDim2.new(0, 64, 0, 31),
+            BackgroundTransparency = 1,
+            Text = description,
+            TextColor3 = Colors.TextDim,
+            TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            Font = Enum.Font.SourceSans,
+        })
+    end
 
     local toggle = createToggle(row, defaultOn, onChange)
     toggle.Position = UDim2.new(1, -58, 0.5, -12)
@@ -796,7 +1000,7 @@ local function createBackgroundParticles(parent)
                 local pulse = 0.85 + math.sin(info.phase * 3) * 0.15
                 info.frame.BackgroundTransparency = math.max(0.1, (1 - pulse) * (1 - alphaMul * 0.5))
             end
-            task.wait(0.03)
+            task.wait(IsMobileDevice and 0.08 or 0.05)
         end
     end)
 end
@@ -922,6 +1126,7 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         Size = UDim2.new(1, -120, 0, 6),
         Position = UDim2.new(0, 64, 0, 48),
         BackgroundColor3 = Color3.fromRGB(35, 35, 50),
+        Active = true,
     })
     makeUICorner(track, 3)
 
@@ -962,18 +1167,30 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
     })
 
     local dragging = false
+    local decimalPlaces = 0
+    local function countDecimalPlaces(value)
+        local text = tostring(value)
+        local dot = string.find(text, "%.")
+        return dot and (#text - dot) or 0
+    end
+    decimalPlaces = math.max(countDecimalPlaces(min), countDecimalPlaces(max))
+
     local function updateValue(inputX)
         local rel = (inputX - track.AbsolutePosition.X) / track.AbsoluteSize.X
         rel = math.clamp(rel, 0, 1)
-        local val = math.floor(rel * (max - min) + min)
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        knob.Position = UDim2.new(rel, -7, 0.5, -7)
+        local rawValue = rel * (max - min) + min
+        local factor = 10 ^ decimalPlaces
+        local val = math.floor(rawValue * factor + 0.5) / factor
+        local normalized = math.clamp((val - min) / (max - min), 0, 1)
+        fill.Size = UDim2.new(normalized, 0, 1, 0)
+        knob.Position = UDim2.new(normalized, -7, 0.5, -7)
         valLabel.Text = label .. ": " .. tostring(val)
         if onChange then onChange(val) end
     end
 
     track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             updateValue(input.Position.X)
             -- Knob scale punch on grab
@@ -982,12 +1199,14 @@ local function createSliderRow(parent, iconText, label, min, max, defaultVal, ac
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
             updateValue(input.Position.X)
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch) then
             dragging = false
             -- Knob scale release
             playSpringTween(knob, {Size = UDim2.new(0, 14, 0, 14)}, "elastic", 0.3)
@@ -1360,21 +1579,30 @@ end
 local ScreenGui
 local MainFrame
 local MainFrameScale
+local toggleUIVisibility
 local showOnboarding
 local ContentArea
 local PageFrames = {}
 local SidebarButtons = {}
 local activeTab = nil
+local ConfigUI = nil
+local refreshConfigsPage
+local applyAllConfig
+local rebuildHubUI
+local loadConfigSlot
+local deleteConfigSlot
 
 local buildPages  -- forward declaration so the Reload UI closure can call it
 local createColorPickerRow  -- forward declaration so buildPremiumPage can call it
 local toggleRGBAccent  -- forward declaration so buildPremiumPage can call it
+local showWarningUI  -- forward declaration so Quick Actions can replay it
 
 local function destroyOldGui()
     local old = CoreGui:FindFirstChild("DAYI_HUB")
     if old then old:Destroy() end
     local old2 = LocalPlayer.PlayerGui:FindFirstChild("DAYI_HUB")
     if old2 then old2:Destroy() end
+    NotificationContainer = nil
 end
 
 local function playOpenSound()
@@ -1397,15 +1625,56 @@ local function buildGUI()
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.IgnoreGuiInset = true
+    ScreenGui.DisplayOrder = 999
     pcall(function() ScreenGui.Parent = CoreGui end)
     if ScreenGui.Parent == nil then
         ScreenGui.Parent = LocalPlayer.PlayerGui
     end
 
+    -- Mobile floating logo toggle. It stays visible while the main UI is hidden.
+    if IsMobileDevice then
+        local mobileToggleButton = Instance.new("ImageButton")
+        mobileToggleButton.Name = "DAYI_MobileToggle"
+        mobileToggleButton.Size = UDim2.new(0, 58, 0, 58)
+        mobileToggleButton.Position = UDim2.new(0, 16, 1, -104)
+        mobileToggleButton.AnchorPoint = Vector2.new(0, 1)
+        mobileToggleButton.BackgroundColor3 = Color3.fromRGB(12, 8, 24)
+        mobileToggleButton.BackgroundTransparency = 0.08
+        mobileToggleButton.BorderSizePixel = 0
+        mobileToggleButton.AutoButtonColor = false
+        mobileToggleButton.Active = true
+        mobileToggleButton.ClipsDescendants = true
+        mobileToggleButton.ScaleType = Enum.ScaleType.Crop
+        mobileToggleButton.ZIndex = 50
+        mobileToggleButton.Image = resolveMobileToggleLogo()
+        mobileToggleButton.Parent = ScreenGui
+        makeUICorner(mobileToggleButton, 12)
+        makeUIStroke(mobileToggleButton, Colors.PurpleBright, 2, 0.15)
+        addRippleClick(mobileToggleButton, Colors.PurpleBright)
+
+        local mobileToggleFallback = makeTextLabel(mobileToggleButton, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "D",
+            TextColor3 = Colors.PurpleBright,
+            TextSize = 30,
+            Font = Enum.Font.SourceSansBold,
+            ZIndex = 51,
+        })
+        mobileToggleFallback.Visible = mobileToggleButton.Image == ""
+
+        mobileToggleButton.Activated:Connect(function()
+            if toggleUIVisibility then
+                toggleUIVisibility()
+            end
+        end)
+    end
+
     -- Main container
     MainFrame = makeFrame(ScreenGui, {
         Size = UDim2.new(0, 1040, 0, 640),
-        Position = UDim2.new(0.5, -520, 0.5, -320),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
         BackgroundColor3 = Colors.Bg,
         BorderSizePixel = 0,
         Visible = true,
@@ -1424,7 +1693,7 @@ local function buildGUI()
     makeUICorner(innerGlow, 12)
 
     MainFrameScale = Instance.new("UIScale")
-    MainFrameScale.Scale = 1
+    MainFrameScale.Scale = MobileUIScale
     MainFrameScale.Parent = MainFrame
 
     --==== TITLE BAR ====
@@ -1659,26 +1928,29 @@ local function buildGUI()
 
     local function animateClose()
         State.UIVisible = false
-        TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = 0.7}):Play()
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = MobileUIScale * 0.7}):Play()
         task.delay(0.2, function()
             MainFrame.Visible = false
-            MainFrameScale.Scale = 1
+            MainFrameScale.Scale = MobileUIScale
         end)
     end
 
     -- Window open animation
     local function animateOpen()
         MainFrame.Visible = true
-        MainFrameScale.Scale = 0.85
+        MainFrameScale.Scale = MobileUIScale * 0.85
         State.UIVisible = true
-        TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = MobileUIScale}):Play()
     end
     State.animateOpen = animateOpen
 
     winCtrlClose.MouseButton1Click:Connect(function()
         addRippleClick(winCtrlClose, Colors.Red)
         animateClose()
-        notify("DAYI HUB", "UI hidden. Press RightShift to toggle.", 3)
+        local reopenHint = IsMobileDevice
+            and "Tap the DAYI logo button to reopen."
+            or ("Press " .. Config.UIToggleKey .. " to toggle.")
+        notify("DAYI HUB", "UI hidden. " .. reopenHint, 3)
     end)
     winCtrlMin.MouseButton1Click:Connect(function()
         addRippleClick(winCtrlMin, Colors.PurpleBright)
@@ -1741,6 +2013,8 @@ local function buildGUI()
         { name = "Visual",   icon = "👁️" },
         { name = "Player",   icon = "👤" },
         { name = "Premium",  icon = "👑", badge = "NEW", premiumOnly = true },
+        { name = "Misc",     icon = "🧩" },
+        { name = "Configs",  icon = "🗂️" },
         { name = "Settings",  icon = "⚙️" },
         { name = "Changelog", icon = "📝" },
         { name = "Credits",   icon = "🩷" },
@@ -2098,11 +2372,16 @@ local function buildGUI()
         sysValLabels[info.live] = valLbl
     end
 
+    local placeOk, placeName = pcall(function()
+        return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    end)
+    sysValLabels.place.Text = (placeOk and type(placeName) == "string") and placeName or "Roblox"
+
     task.spawn(function()
         local fpsFrames = 0
         local fpsAccum = 0
-        while true do
-            local dt = task.wait(0.5)
+        while rightPanel and rightPanel.Parent do
+            local dt = task.wait(1)
             if dt > 0 then
                 fpsAccum = fpsAccum + (1 / dt)
                 fpsFrames = fpsFrames + 1
@@ -2137,20 +2416,12 @@ local function buildGUI()
             local maxPlayers = Players.MaxPlayers or 0
             local curPlayers = #Players:GetPlayers()
             sysValLabels.players.Text = curPlayers .. " / " .. maxPlayers
-            local placeOk, placeName = pcall(function()
-                return game.MarketplaceService and game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Roblox"
-            end)
-            if placeOk and type(placeName) == "string" then
-                sysValLabels.place.Text = placeName
-            else
-                sysValLabels.place.Text = "Roblox"
-            end
         end
     end)
 
     -- Quick Actions card
     local qaCard = makeFrame(rightPanel, {
-        Size = UDim2.new(1, -28, 0, 132),
+        Size = UDim2.new(1, -28, 0, 204),
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(qaCard, 10)
@@ -2180,7 +2451,11 @@ local function buildGUI()
                 PageFrames["Graphics"].Visible = true
             end
         end },
-        { text = "💾  Save Config",  filled = false, action = function() notify("DAYI HUB", "Config saved (local).", 2) end },
+         { text = "💾  Save Config",  filled = false, action = function()
+             saveConfig()
+             saveConfigSlots()
+             notify("DAYI HUB", "Config saved (local).", 2)
+         end },
         { text = "📁  Open Folder",  filled = false, action = function() notify("DAYI HUB", "Folder opening...", 2) end },
         { text = "🎬  Replay Intro",  filled = false, action = function()
             Config.FirstLaunch = true
@@ -2190,6 +2465,20 @@ local function buildGUI()
             if MainFrame then MainFrame.Visible = false end
             showOnboarding(function()
                 if MainFrame then MainFrame.Visible = true end
+            end)
+        end },
+        { text = "⚠️  Replay Warning", filled = false, action = function()
+            notify("DAYI HUB", "Replaying warning screen...", 2)
+            task.wait(0.25)
+            if MainFrame then
+                MainFrame.Visible = false
+            end
+            showWarningUI(function()
+                notify("DAYI HUB", "Warning accepted.", 2)
+            end, function()
+                if MainFrame then
+                    MainFrame.Visible = true
+                end
             end)
         end },
     }
@@ -2323,8 +2612,8 @@ local function buildGUI()
     task.spawn(function()
         local fpsFrames = 0
         local fpsAccum = 0
-        while true do
-            local dt = task.wait(0.5)
+        while statusBar and statusBar.Parent do
+            local dt = task.wait(1)
             if dt > 0 then
                 fpsAccum = fpsAccum + (1 / dt)
                 fpsFrames = fpsFrames + 1
@@ -2409,15 +2698,17 @@ local function buildGraphicsPage()
     grid.Parent = scroll
 
     local features = {
-        { name = "Unlimited Zoom",    desc = "Remove Roblox zoom limit.",   icon = "🔍", locked = false, default = false, key = "UnlimitedZoom" },
-        { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = false, key = "FPSBooster" },
-        { name = "VFX Remover",        desc = "Remove all visual effects.",  icon = "📦", locked = false, default = false, key = "VFXRemover" },
-        { name = "Particle Remover",   desc = "Remove all particles.",       icon = "✨", locked = false, default = false, key = "ParticleRemover" },
-        { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = false, default = false, key = "TextureOptimizer" },
-        { name = "Shadow Remover",     desc = "Remove all shadows.",          icon = "☀️", locked = false, default = false, key = "ShadowRemover" },
-        { name = "Light Optimizer",     desc = "Optimize game lighting.",      icon = "💡", locked = false, default = false, key = "LightOptimizer" },
-        { name = "Water Optimizer",     desc = "Improve water performance.",   icon = "💧", locked = false, default = false, key = "WaterOptimizer" },
-        { name = "Grass Optimizer",     desc = "Optimize grass quality.",      icon = "🌿", locked = false, default = false, key = "GrassOptimizer" },
+        -- Keep this first so it is immediately visible on mobile and scaled layouts.
+        { name = "Cutscene Remover (WIP)", desc = "Skip named camera and UI cutscenes.", icon = "🎬", locked = false, default = Config.CutsceneRemover, key = "CutsceneRemover" },
+        { name = "Unlimited Zoom",    desc = "Remove Roblox zoom limit.",   icon = "🔍", locked = false, default = Config.UnlimitedZoom, key = "UnlimitedZoom" },
+        { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = Config.FPSBooster, key = "FPSBooster" },
+        { name = "VFX Remover",        desc = "Remove all visual effects.",  icon = "📦", locked = false, default = Config.VFXRemover, key = "VFXRemover" },
+        { name = "Particle Remover",   desc = "Remove all particles.",       icon = "✨", locked = false, default = Config.ParticleRemover, key = "ParticleRemover" },
+        { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = false, default = Config.TextureOptimizer, key = "TextureOptimizer" },
+        { name = "Shadow Remover",     desc = "Remove all shadows.",          icon = "☀️", locked = false, default = Config.ShadowRemover, key = "ShadowRemover" },
+        { name = "Light Optimizer",     desc = "Optimize game lighting.",      icon = "💡", locked = false, default = Config.LightOptimizer, key = "LightOptimizer" },
+        { name = "Water Optimizer",     desc = "Improve water performance.",   icon = "💧", locked = false, default = Config.WaterOptimizer, key = "WaterOptimizer" },
+        { name = "Grass Optimizer",     desc = "Optimize grass quality.",      icon = "🌿", locked = false, default = Config.GrassOptimizer, key = "GrassOptimizer" },
     }
 
     for i, f in ipairs(features) do
@@ -2435,34 +2726,34 @@ local function buildVisualPage()
     local scroll = createScrollContent(page, 52)
     makeUIListLayout(scroll, 6)
 
-    createToggleRow(scroll, "🔴", "Wallhack ESP", Colors.Pink, false, function(on)
+    createToggleRow(scroll, "🔴", "Wallhack ESP", Colors.Pink, Config.WallhackESP, function(on)
         DayiHub.SetToggle("WallhackESP", on)
     end)
-    createToggleRow(scroll, "💀", "Skeleton ESP", Colors.Pink, false, function(on)
+    createToggleRow(scroll, "💀", "Skeleton ESP", Colors.Pink, Config.SkeletonESP, function(on)
         DayiHub.SetToggle("SkeletonESP", on)
     end)
-    createToggleRow(scroll, "🟦", "Box ESP", Colors.Cyan, false, function(on)
+    createToggleRow(scroll, "🟦", "Box ESP", Colors.Cyan, Config.BoxESP, function(on)
         DayiHub.SetToggle("BoxESP", on)
     end)
-    createToggleRow(scroll, "📛", "Name ESP", Colors.Purple, false, function(on)
+    createToggleRow(scroll, "📛", "Name ESP", Colors.Purple, Config.NameESP, function(on)
         DayiHub.SetToggle("NameESP", on)
     end)
-    createDropdownRow(scroll, "🎯", "Aimbot", {"ON", "OFF"}, "OFF", Colors.Cyan, function(val)
+    createDropdownRow(scroll, "🎯", "Aimbot", {"ON", "OFF"}, Config.Aimbot and "ON" or "OFF", Colors.Cyan, function(val)
         DayiHub.SetToggle("Aimbot", val == "ON")
     end)
-    createDropdownRow(scroll, "📱", "Mobile Aimbot", {"ON", "OFF"}, "OFF", Colors.Cyan, function(val)
+    createDropdownRow(scroll, "📱", "Mobile Aimbot", {"ON", "OFF"}, Config.MobileAimbot and "ON" or "OFF", Colors.Cyan, function(val)
         DayiHub.SetToggle("MobileAimbot", val == "ON")
     end)
     createBindKeyRow(scroll, "⌨️", "Bind Key", Colors.TextDim, function(key)
         DayiHub.SetBindKey(key)
-    end)
-    createDropdownRow(scroll, "🎯", "Target", {"Head", "Body"}, "Head", Colors.TextDim, function(val)
+    end, Config.BindKey)
+    createDropdownRow(scroll, "🎯", "Target", {"Head", "Body"}, Config.Target or "Head", Colors.TextDim, function(val)
         DayiHub.SetTarget(val)
     end)
-    createDropdownRow(scroll, "⭕", "Show Circle", {"ON", "OFF"}, "OFF", Colors.Red, function(val)
+    createDropdownRow(scroll, "⭕", "Show Circle", {"ON", "OFF"}, Config.ShowCircle and "ON" or "OFF", Colors.Red, function(val)
         DayiHub.SetToggle("ShowCircle", val == "ON")
     end)
-    createSliderRow(scroll, "📏", "Circle Radius", 50, 500, 150, Colors.Cyan, function(val)
+    createSliderRow(scroll, "📏", "Circle Radius", 50, 500, Config.CircleRadius or 150, Colors.Cyan, function(val)
         DayiHub.SetSlider("CircleRadius", val)
     end)
 end
@@ -2474,38 +2765,35 @@ local function buildPlayerPage()
     local scroll = createScrollContent(page, 52)
     makeUIListLayout(scroll, 6)
 
-    createToggleRow(scroll, "⚡", "Speed Hack", Colors.Cyan, false, function(on)
+    createToggleRow(scroll, "⚡", "Speed Hack", Colors.Cyan, Config.SpeedHack, function(on)
         DayiHub.SetToggle("SpeedHack", on)
     end)
-    createSliderRow(scroll, "⚡", "Walk Speed", 16, 200, 16, Colors.Cyan, function(val)
+    createSliderRow(scroll, "⚡", "Walk Speed", 16, 200, Config.WalkSpeed or 16, Colors.Cyan, function(val)
         DayiHub.SetSlider("WalkSpeed", val)
     end)
-    createSliderRow(scroll, "🎯", "Aimbot Smoothness", 0.01, 0.99, 0.15, Colors.Pink, function(val)
+    createSliderRow(scroll, "🎯", "Aimbot Smoothness", 0.01, 0.99, Config.AimbotSmoothness or 0.15, Colors.Pink, function(val)
         DayiHub.SetSlider("AimbotSmoothness", val)
     end)
-    createToggleRow(scroll, "🐇", "Bunny Hop", Colors.Green, false, function(on)
-        DayiHub.SetToggle("BunnyHop", on)
-    end)
-    createToggleRow(scroll, "✈️", "Fly Mode", Colors.Purple, false, function(on)
+    createToggleRow(scroll, "✈️", "Fly Mode", Colors.Purple, Config.FlyMode, function(on)
         DayiHub.SetToggle("FlyMode", on)
     end)
-    createSliderRow(scroll, "✈️", "Fly Speed", 1, 100, 25, Colors.Purple, function(val)
+    createSliderRow(scroll, "✈️", "Fly Speed", 1, 100, Config.FlySpeed or 25, Colors.Purple, function(val)
         DayiHub.SetSlider("FlySpeed", val)
     end)
-    createToggleRow(scroll, "👻", "Noclip", Colors.Pink, false, function(on)
+    createToggleRow(scroll, "👻", "Noclip", Colors.Pink, Config.Noclip, function(on)
         DayiHub.SetToggle("Noclip", on)
     end)
     if isPremiumUser() then
-        createToggleRow(scroll, "🦅", "Infinite Jump", Colors.Pink, false, function(on)
+        createToggleRow(scroll, "🦅", "Infinite Jump", Colors.Pink, Config.InfiniteJump, function(on)
             DayiHub.SetToggle("InfiniteJump", on)
         end)
-        createSliderRow(scroll, "⬆️", "Jump Power", 50, 300, 50, Colors.Pink, function(val)
+        createSliderRow(scroll, "⬆️", "Jump Power", 50, 300, Config.JumpPower or 50, Colors.Pink, function(val)
             DayiHub.SetSlider("JumpPower", val)
         end)
-        createToggleRow(scroll, "🔱", "Anti Ragdoll", Colors.Cyan, false, function(on)
+        createToggleRow(scroll, "🔱", "Anti Ragdoll", Colors.Cyan, Config.AntiRagdoll, function(on)
             DayiHub.SetToggle("AntiRagdoll", on)
         end)
-        createToggleRow(scroll, "🛡️", "God Mode", Colors.Purple, false, function(on)
+        createToggleRow(scroll, "🛡️", "God Mode", Colors.Purple, Config.GodMode, function(on)
             DayiHub.SetToggle("GodMode", on)
         end)
     else
@@ -2514,6 +2802,21 @@ local function buildPlayerPage()
         createLockedRow(scroll, "🔱", "Anti Ragdoll")
         createLockedRow(scroll, "🛡️", "God Mode")
     end
+end
+
+local function buildMiscPage()
+    local page = createPageContainer("Misc")
+    createPageHeader(page, "🧩", "Misc", "Extra movement tools and experimental features.", Colors.Purple)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 6)
+
+    createToggleRow(scroll, "🐇", "Bunny Hop", Colors.Green, Config.BunnyHop, function(on)
+        DayiHub.SetToggle("BunnyHop", on)
+    end)
+    createToggleRow(scroll, "🦘", "Auto Jump", Colors.Cyan, Config.AutoJump, function(on)
+        DayiHub.SetToggle("AutoJump", on)
+    end, "Why not let your character do the jumping for you?")
 end
 
 local function buildPremiumPage()
@@ -2775,6 +3078,229 @@ createColorPickerRow = function(parent, iconText, label, accentColor, themes, cu
     end
 end
 
+local function buildConfigsPage()
+    local page = createPageContainer("Configs")
+    createPageHeader(page, "🗂️", "Configs", "Save and restore your favorite hub settings.", Colors.Purple)
+
+    local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 8)
+
+    local planCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 58),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(planCard, 10)
+    makeUIGradient(planCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(planCard, Colors.Purple, 1, 0.82)
+
+    makeTextLabel(planCard, {
+        Size = UDim2.new(1, -24, 0, 18),
+        Position = UDim2.new(0, 12, 0, 9),
+        BackgroundTransparency = 1,
+        Text = "Saved Configs",
+        TextColor3 = Colors.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSansBold,
+    })
+
+    local limitLabel = makeTextLabel(planCard, {
+        Size = UDim2.new(1, -24, 0, 16),
+        Position = UDim2.new(0, 12, 0, 31),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Colors.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.SourceSans,
+    })
+
+    local editorCard = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 70),
+        BackgroundColor3 = Colors.Card,
+    })
+    makeUICorner(editorCard, 10)
+    makeUIGradient(editorCard, Colors.CardGrad1, Colors.CardGrad2, 135)
+    makeUIStroke(editorCard, Colors.Purple, 1, 0.82)
+
+    local nameInput = Instance.new("TextBox")
+    nameInput.Name = "ConfigNameInput"
+    nameInput.Parent = editorCard
+    nameInput.Size = UDim2.new(1, -150, 0, 34)
+    nameInput.Position = UDim2.new(0, 12, 0.5, -17)
+    nameInput.BackgroundColor3 = Colors.InputBg
+    nameInput.BorderSizePixel = 0
+    nameInput.ClearTextOnFocus = false
+    nameInput.PlaceholderText = "Config name (optional)"
+    nameInput.PlaceholderColor3 = Colors.TextFaint
+    nameInput.Text = ""
+    nameInput.TextColor3 = Colors.Text
+    nameInput.TextSize = 12
+    nameInput.TextXAlignment = Enum.TextXAlignment.Left
+    nameInput.Font = Enum.Font.SourceSans
+    nameInput.TextWrapped = false
+    nameInput.ZIndex = 2
+    makeUICorner(nameInput, 8)
+    makeUIStroke(nameInput, Colors.Purple, 1, 0.75)
+
+    local saveButton = makeButton(editorCard, {
+        Size = UDim2.new(0, 116, 0, 34),
+        Position = UDim2.new(1, -128, 0.5, -17),
+        BackgroundColor3 = Colors.PurpleBtn,
+        Text = "💾  Save",
+        TextColor3 = Colors.Text,
+        TextSize = 12,
+        Font = Enum.Font.SourceSansBold,
+    })
+    makeUICorner(saveButton, 8)
+    makeUIGradient(saveButton, Colors.PurpleBtnHov, Colors.PurpleBtn, 135)
+    makeUIStroke(saveButton, Colors.Purple, 1, 0.5)
+
+    local listContainer = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 0),
+        BackgroundTransparency = 1,
+        AutomaticSize = Enum.AutomaticSize.Y,
+    })
+    makeUIListLayout(listContainer, 6)
+
+    ConfigUI = {
+        list = listContainer,
+        nameInput = nameInput,
+        limitLabel = limitLabel,
+    }
+
+    saveButton.MouseButton1Click:Connect(function()
+        local ok, result = saveNamedConfig(nameInput.Text)
+        if not ok then
+            notify("Configs", result, 3)
+            return
+        end
+
+        local savedName = nameInput.Text:gsub("^%s*(.-)%s*$", "%1")
+        if savedName == "" then
+            savedName = "Config " .. tostring(#ConfigSlots)
+        end
+        nameInput.Text = ""
+        refreshConfigsPage()
+        notify("Configs", savedName .. (result == "updated" and " updated." or " saved."), 3)
+    end)
+
+    refreshConfigsPage()
+end
+
+refreshConfigsPage = function()
+    if not ConfigUI or not ConfigUI.list or not ConfigUI.list.Parent then return end
+
+    local limit = getConfigLimit()
+    local limitText
+    if limit == math.huge then
+        limitText = "Developer plan • Unlimited saved configs"
+    else
+        limitText = string.format("%s plan • %d/%d configs used", (UserPlan == "premium" and "Premium" or "Free"), #ConfigSlots, limit)
+    end
+    ConfigUI.limitLabel.Text = limitText
+
+    for _, child in ipairs(ConfigUI.list:GetChildren()) do
+        if not child:IsA("UIListLayout") then
+            child:Destroy()
+        end
+    end
+
+    if #ConfigSlots == 0 then
+        local empty = makeFrame(ConfigUI.list, {
+            Size = UDim2.new(1, 0, 0, 62),
+            BackgroundColor3 = Colors.Panel,
+        })
+        makeUICorner(empty, 10)
+        makeUIStroke(empty, Colors.Purple, 1, 0.88)
+        makeTextLabel(empty, {
+            Size = UDim2.new(1, -24, 1, 0),
+            Position = UDim2.new(0, 12, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "No saved configs yet.",
+            TextColor3 = Colors.TextDim,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            Font = Enum.Font.SourceSans,
+        })
+        return
+    end
+
+    for index, slot in ipairs(ConfigSlots) do
+        local row = makeFrame(ConfigUI.list, {
+            Size = UDim2.new(1, 0, 0, 66),
+            BackgroundColor3 = Colors.Card,
+        })
+        makeUICorner(row, 10)
+        makeUIGradient(row, Colors.CardGrad1, Colors.CardGrad2, 135)
+        makeUIStroke(row, Colors.Purple, 1, 0.84)
+
+        local accentBar = makeFrame(row, {
+            Size = UDim2.new(0, 3, 1, 0),
+            BackgroundColor3 = Colors.Purple,
+            BorderSizePixel = 0,
+        })
+        makeUICorner(accentBar, 2)
+
+        makeTextLabel(row, {
+            Size = UDim2.new(1, -220, 0, 20),
+            Position = UDim2.new(0, 14, 0, 10),
+            BackgroundTransparency = 1,
+            Text = slot.name,
+            TextColor3 = Colors.Text,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        makeTextLabel(row, {
+            Size = UDim2.new(1, -220, 0, 16),
+            Position = UDim2.new(0, 14, 0, 32),
+            BackgroundTransparency = 1,
+            Text = os.date("%Y-%m-%d %H:%M", slot.savedAt or os.time()),
+            TextColor3 = Colors.TextDim,
+            TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+
+        local slotIndex = index
+        local loadButton = makeButton(row, {
+            Size = UDim2.new(0, 78, 0, 30),
+            Position = UDim2.new(1, -174, 0.5, -15),
+            BackgroundColor3 = Colors.PurpleBtn,
+            Text = "Load",
+            TextColor3 = Colors.Text,
+            TextSize = 11,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeUICorner(loadButton, 8)
+        makeUIStroke(loadButton, Colors.Purple, 1, 0.5)
+        loadButton.MouseButton1Click:Connect(function()
+            loadConfigSlot(slotIndex)
+        end)
+
+        local deleteButton = makeButton(row, {
+            Size = UDim2.new(0, 78, 0, 30),
+            Position = UDim2.new(1, -88, 0.5, -15),
+            BackgroundColor3 = Color3.fromRGB(70, 22, 30),
+            Text = "Delete",
+            TextColor3 = Colors.Text,
+            TextSize = 11,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeUICorner(deleteButton, 8)
+        makeUIStroke(deleteButton, Colors.Red, 1, 0.55)
+        deleteButton.MouseButton1Click:Connect(function()
+            if deleteConfigSlot(slotIndex) then
+                refreshConfigsPage()
+                notify("Configs", slot.name .. " deleted.", 3)
+            end
+        end)
+    end
+end
+
 local function buildSettingsPage()
     local page = createPageContainer("Settings")
     createPageHeader(page, "⚙️", "Settings", "Customize your DAYI HUB experience.", Colors.TextDim)
@@ -2794,11 +3320,11 @@ local function buildSettingsPage()
         DayiHub.SetSlider("ParticleLevel", val)
     end)
 
-    createSliderRow(scroll, "📐", "UI Scale", 80, 120, 100, Colors.Purple, function(val)
+    createSliderRow(scroll, "📐", "UI Scale", 80, 120, Config.UIScale or 100, Colors.Purple, function(val)
         DayiHub.SetSlider("UIScale", val)
     end)
 
-    createSliderRow(scroll, "📷", "Camera FOV", 1, 120, 70, Colors.Cyan, function(val)
+    createSliderRow(scroll, "📷", "Camera FOV", 1, 120, Config.CameraFOV or 70, Colors.Cyan, function(val)
         DayiHub.SetSlider("CameraFOV", val)
     end)
 end
@@ -2812,10 +3338,29 @@ local function buildChangelogPage()
 
     local updates = {
         {
-            version = "v10.3",
-            date = "2025-08-08",
+            version = "v10.5",
+            date = "2026-08-19",
             badge = "NEW",
             badgeColor = Colors.Green,
+            sections = {
+                { type = "added", items = {
+                    "Warning screen is remembered after the first accepted acknowledgement",
+                    "Replay Warning action added to Quick Actions",
+                    "Cutscene Remover toggle added to Graphics",
+                    "Particle Remover toggle added to Graphics page",
+                    "beren added to Credits as Best Waifu",
+                }},
+                { type = "fixed", items = {
+                    "Replay Warning now hides the main UI until the warning screen closes",
+                    "Loading modules screen no longer hangs (spinner task.cancel fix)",
+                    "Particle thread cleanup fixed (task.cancel replaces Disconnect)",
+                }},
+            },
+        },
+        {
+            version = "v10.3",
+            date = "2025-08-08",
+            badge = nil,
             sections = {
                 { type = "added", items = {
                     "Particle Remover toggle added to Graphics page",
@@ -3142,14 +3687,11 @@ local function buildCreditsPage()
             local glowGrad = Instance.new("UIGradient")
             glowGrad.Color = ColorSequence.new(dev.accent, Color3.fromRGB(255, 255, 255))
             glowGrad.Parent = glowStroke
-            task.spawn(function()
-                while glowStroke.Parent do
-                    TweenService:Create(glowStroke, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5}):Play()
-                    task.wait(2.5)
-                    TweenService:Create(glowStroke, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.1}):Play()
-                    task.wait(2.5)
-                end
-            end)
+            playRepeatingTween(
+                glowStroke,
+                TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                {Transparency = 0.5}
+            )
 
             -- Subtle aura glow behind card
             local aura = makeFrame(card, {
@@ -3161,14 +3703,11 @@ local function buildCreditsPage()
                 ZIndex = 0,
             })
             makeUICorner(aura, 14)
-            task.spawn(function()
-                while aura.Parent do
-                    TweenService:Create(aura, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.82}):Play()
-                    task.wait(3)
-                    TweenService:Create(aura, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.95}):Play()
-                    task.wait(3)
-                end
-            end)
+            playRepeatingTween(
+                aura,
+                TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                {BackgroundTransparency = 0.82}
+            )
 
             -- Slow shimmer sweep across card
             local shimmer = makeFrame(card, {
@@ -3237,14 +3776,15 @@ local function buildCreditsPage()
                 ZIndex = 1,
             })
             makeUICorner(iconGlow, (iconSize + 12)/2)
-            task.spawn(function()
-                while iconGlow.Parent do
-                    TweenService:Create(iconGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.7, Size = UDim2.new(0, iconSize + 18, 0, iconSize + 18), Position = UDim2.new(0, 5, 0.5, -(iconSize + 18)/2)}):Play()
-                    task.wait(2)
-                    TweenService:Create(iconGlow, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.9, Size = UDim2.new(0, iconSize + 12, 0, iconSize + 12), Position = UDim2.new(0, 8, 0.5, -(iconSize + 12)/2)}):Play()
-                    task.wait(2)
-                end
-            end)
+            playRepeatingTween(
+                iconGlow,
+                TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                {
+                    BackgroundTransparency = 0.7,
+                    Size = UDim2.new(0, iconSize + 18, 0, iconSize + 18),
+                    Position = UDim2.new(0, 5, 0.5, -(iconSize + 18)/2),
+                }
+            )
 
             local iconCircle = makeFrame(card, {
                 Size = UDim2.new(0, iconSize, 0, iconSize),
@@ -3271,14 +3811,11 @@ local function buildCreditsPage()
                 Font = Enum.Font.SourceSansBold,
             })
             -- Gentle icon float
-            task.spawn(function()
-                while iconLabel.Parent do
-                    TweenService:Create(iconLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, -2)}):Play()
-                    task.wait(1.5)
-                    TweenService:Create(iconLabel, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(0, 0, 0, 0)}):Play()
-                    task.wait(1.5)
-                end
-            end)
+            playRepeatingTween(
+                iconLabel,
+                TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                {Position = UDim2.new(0, 0, 0, -2)}
+            )
 
             -- Name label (larger, bolder)
             makeTextLabel(card, {
@@ -3308,14 +3845,11 @@ local function buildCreditsPage()
                 math.min(dev.accent.G * 255 + 40, 255),
                 math.min(dev.accent.B * 255 + 40, 255)
             )
-            task.spawn(function()
-                while roleLabel.Parent do
-                    TweenService:Create(roleLabel, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = roleBright}):Play()
-                    task.wait(2)
-                    TweenService:Create(roleLabel, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = dev.accent}):Play()
-                    task.wait(2)
-                end
-            end)
+            playRepeatingTween(
+                roleLabel,
+                TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                {TextColor3 = roleBright}
+            )
 
         else
             --==== NORMAL DEV CARD ====--
@@ -3429,12 +3963,34 @@ buildPages = function()
     safeBuild("Visual",    buildVisualPage)
     safeBuild("Player",    buildPlayerPage)
     safeBuild("Premium",   buildPremiumPage)
+    safeBuild("Misc",      buildMiscPage)
+    safeBuild("Configs",   buildConfigsPage)
     safeBuild("Settings",  buildSettingsPage)
     safeBuild("Changelog", buildChangelogPage)
     safeBuild("Credits",   buildCreditsPage)
 
     -- Show default page
     if PageFrames["Graphics"] then
+        PageFrames["Graphics"].Visible = true
+    end
+end
+
+rebuildHubUI = function(tabName)
+    activeTab = tabName or activeTab or "Graphics"
+    destroyOldGui()
+    PageFrames = {}
+    SidebarButtons = {}
+    ConfigUI = nil
+    buildGUI()
+    buildPages()
+
+    for _, page in pairs(PageFrames) do
+        page.Visible = false
+    end
+    if PageFrames[activeTab] then
+        PageFrames[activeTab].Visible = true
+    elseif PageFrames["Graphics"] then
+        activeTab = "Graphics"
         PageFrames["Graphics"].Visible = true
     end
 end
@@ -3612,6 +4168,220 @@ local function applyParticleRemover()
                 end
                 table.clear(State.ParticleBackup)
             end
+        end
+    end)
+end
+
+local CutsceneCameraBindName = "DAYI_CutsceneRemover_Camera"
+local CutsceneNameParts = {
+    "cutscene", "cut_scene", "cinematic", "cinema_scene",
+    "cinematic_scene", "letterbox", "blackbar", "black_bar",
+    "cinematicbar", "cinematic_bar",
+}
+
+local function isCutsceneName(name)
+    local lower = string.lower(tostring(name or ""))
+    for _, part in ipairs(CutsceneNameParts) do
+        if lower:find(part, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+local function findCutsceneScreenGui(obj)
+    local current = obj
+    while current and current ~= LocalPlayer.PlayerGui do
+        if current:IsA("ScreenGui") and isCutsceneName(current.Name) then
+            return current
+        end
+        current = current.Parent
+    end
+    return nil
+end
+
+local function guardCutsceneGui(obj, property)
+    if not obj or State.CutsceneGuiBackup[obj] ~= nil then return end
+
+    local value
+    pcall(function() value = obj[property] end)
+    if value == nil then return end
+
+    State.CutsceneGuiBackup[obj] = {
+        property = property,
+        value = value,
+    }
+    pcall(function() obj[property] = false end)
+
+    local ok, signal = pcall(function()
+        return obj:GetPropertyChangedSignal(property)
+    end)
+    if ok and signal then
+        State.CutsceneGuiGuards[obj] = signal:Connect(function()
+            if Config.CutsceneRemover then
+                pcall(function() obj[property] = false end)
+            end
+        end)
+    end
+end
+
+local function suppressCutsceneScript(obj)
+    if not obj:IsA("LocalScript") or not isCutsceneName(obj.Name) then return end
+    if State.CutsceneScriptBackup[obj] ~= nil then return end
+
+    local wasDisabled
+    pcall(function() wasDisabled = obj.Disabled end)
+    if wasDisabled == nil then return end
+
+    State.CutsceneScriptBackup[obj] = wasDisabled
+    pcall(function() obj.Disabled = true end)
+
+    local ok, signal = pcall(function()
+        return obj:GetPropertyChangedSignal("Disabled")
+    end)
+    if ok and signal then
+        State.CutsceneScriptGuards[obj] = signal:Connect(function()
+            if Config.CutsceneRemover then
+                pcall(function() obj.Disabled = true end)
+            end
+        end)
+    end
+end
+
+local function suppressCutsceneGui(obj)
+    pcall(function()
+        suppressCutsceneScript(obj)
+        if obj:IsA("ScreenGui") and isCutsceneName(obj.Name) then
+            guardCutsceneGui(obj, "Enabled")
+            return
+        end
+
+        if obj:IsA("GuiObject") then
+            local cutsceneGui = findCutsceneScreenGui(obj)
+            if cutsceneGui then
+                -- Disable the named cutscene ScreenGui once, instead of
+                -- hiding unrelated children one by one.
+                guardCutsceneGui(cutsceneGui, "Enabled")
+            elseif isCutsceneName(obj.Name) then
+                -- A specifically named cutscene element inside a normal HUD
+                -- is hidden by itself, preserving the rest of that HUD.
+                guardCutsceneGui(obj, "Visible")
+            end
+        end
+    end)
+end
+
+local function restoreCutsceneGuis()
+    for _, connection in pairs(State.CutsceneGuiGuards) do
+        pcall(function() connection:Disconnect() end)
+    end
+    table.clear(State.CutsceneGuiGuards)
+
+    for obj, backup in pairs(State.CutsceneGuiBackup) do
+        pcall(function()
+            obj[backup.property] = backup.value
+        end)
+    end
+    table.clear(State.CutsceneGuiBackup)
+end
+
+local function restoreCutsceneScripts()
+    for _, connection in pairs(State.CutsceneScriptGuards) do
+        pcall(function() connection:Disconnect() end)
+    end
+    table.clear(State.CutsceneScriptGuards)
+
+    for obj, wasDisabled in pairs(State.CutsceneScriptBackup) do
+        pcall(function() obj.Disabled = wasDisabled end)
+    end
+    table.clear(State.CutsceneScriptBackup)
+end
+
+local function scanCutsceneGuis(root)
+    pcall(function()
+        suppressCutsceneGui(root)
+        for _, obj in ipairs(root:GetDescendants()) do
+            suppressCutsceneGui(obj)
+        end
+    end)
+end
+
+local function backupCutsceneCamera(cam)
+    if not cam or State.CutsceneCameraBackups[cam] then return end
+    State.CutsceneCameraBackups[cam] = {
+        cameraType = cam.CameraType,
+        cameraSubject = cam.CameraSubject,
+        fieldOfView = cam.FieldOfView,
+    }
+end
+
+local function enforcePlayerCamera()
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+
+    backupCutsceneCamera(cam)
+    local hum = getHumanoid(LocalPlayer)
+    if cam.CameraType ~= Enum.CameraType.Custom then
+        cam.CameraType = Enum.CameraType.Custom
+    end
+    if hum and cam.CameraSubject ~= hum then
+        cam.CameraSubject = hum
+    end
+    local targetFov = tonumber(Config.CameraFOV) or 70
+    if math.abs(cam.FieldOfView - targetFov) > 0.1 then
+        cam.FieldOfView = targetFov
+    end
+end
+
+local function applyCutsceneRemover()
+    pcall(function()
+        if Config.CutsceneRemover then
+            scanCutsceneGuis(LocalPlayer.PlayerGui)
+
+            if not State.CutsceneGuiConnection then
+                State.CutsceneGuiConnection = LocalPlayer.PlayerGui.DescendantAdded:Connect(function(obj)
+                    if Config.CutsceneRemover then
+                        task.defer(suppressCutsceneGui, obj)
+                    end
+                end)
+            end
+
+            if not State.CutsceneConnection then
+                -- Camera enforcement is cheap; importantly, it never scans GUI descendants.
+                RunService:BindToRenderStep(
+                    CutsceneCameraBindName,
+                    Enum.RenderPriority.Last.Value,
+                    function()
+                        if Config.CutsceneRemover then
+                            enforcePlayerCamera()
+                        end
+                    end
+                )
+                State.CutsceneConnection = true
+            end
+        else
+            if State.CutsceneConnection then
+                RunService:UnbindFromRenderStep(CutsceneCameraBindName)
+                State.CutsceneConnection = nil
+            end
+            if State.CutsceneGuiConnection then
+                State.CutsceneGuiConnection:Disconnect()
+                State.CutsceneGuiConnection = nil
+            end
+
+            restoreCutsceneGuis()
+            restoreCutsceneScripts()
+
+            for cam, backup in pairs(State.CutsceneCameraBackups) do
+                pcall(function()
+                    if cam.Parent then
+                        cam.CameraType = backup.cameraType
+                        cam.CameraSubject = backup.cameraSubject
+                        cam.FieldOfView = backup.fieldOfView
+                    end
+                end)
+            end
+            table.clear(State.CutsceneCameraBackups)
         end
     end)
 end
@@ -4208,7 +4978,7 @@ end
 -- AIMBOT
 --==========================================================================
 local function getClosestPlayer()
-    local closest, closestDist = nil, Config.CircleRadius
+    local closest, closestDist = nil, Config.FOVCheck and Config.CircleRadius or math.huge
     local viewportSize = Camera.ViewportSize
     local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
 
@@ -4426,6 +5196,40 @@ local function setupBunnyHop()
     end
 end
 
+local function setupAutoJump()
+    if State.AutoJumpConnection then
+        State.AutoJumpConnection:Disconnect()
+        State.AutoJumpConnection = nil
+    end
+    if not Config.AutoJump then return end
+
+    local hum = getHumanoid(LocalPlayer)
+    if not hum then return end
+
+    local lastJumpAt = 0
+    local function jumpIfGrounded()
+        if not Config.AutoJump or hum.Health <= 0 or not hum.Parent then return end
+        if os.clock() - lastJumpAt < 0.18 then return end
+
+        local state = hum:GetState()
+        if (state == Enum.HumanoidStateType.Landed
+            or state == Enum.HumanoidStateType.Running)
+            and hum.FloorMaterial ~= Enum.Material.Air then
+            lastJumpAt = os.clock()
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+
+    State.AutoJumpConnection = hum.StateChanged:Connect(function(_, newState)
+        if newState == Enum.HumanoidStateType.Landed
+            or newState == Enum.HumanoidStateType.Running then
+            task.defer(jumpIfGrounded)
+        end
+    end)
+
+    task.defer(jumpIfGrounded)
+end
+
 local function setupInfiniteJump()
     if State.InfiniteJumpConn then
         State.InfiniteJumpConn:Disconnect()
@@ -4532,6 +5336,63 @@ local function toggleNoclip()
     end
 end
 
+applyAllConfig = function()
+    applyAccentTheme(Config.AccentTheme or "Purple")
+    applyUnlimitedZoom()
+    applyFPSBooster()
+    applyVFXRemover()
+    applyParticleRemover()
+    applyCutsceneRemover()
+    applyTextureOptimizer()
+    applyShadowRemover()
+    applyLightOptimizer()
+    applyWaterOptimizer()
+    applyGrassOptimizer()
+    refreshAllESP()
+    toggleAimbot()
+    toggleMobileAimbot()
+    updateCircle()
+    applyWalkSpeed()
+    applyCameraFOV()
+    setupBunnyHop()
+    setupAutoJump()
+    setupInfiniteJump()
+    applyJumpPower()
+    toggleFly()
+    toggleNoclip()
+    toggleRGBAccent()
+end
+
+loadConfigSlot = function(index)
+    local slot = ConfigSlots[index]
+    if not slot or type(slot.settings) ~= "table" then
+        return
+    end
+
+    local restored = deserializeConfigValue(slot.settings)
+    for key, value in pairs(restored) do
+        if Config[key] ~= nil
+            and key ~= "FirstLaunch"
+            and key ~= "WarningAcknowledged"
+            and key ~= "DeviceMode" then
+            Config[key] = value
+        end
+    end
+
+    applyAllConfig()
+    rebuildHubUI("Configs")
+    notify("Configs", slot.name .. " loaded.", 3)
+end
+
+deleteConfigSlot = function(index)
+    if not ConfigSlots[index] then
+        return false
+    end
+    table.remove(ConfigSlots, index)
+    saveConfigSlots()
+    return true
+end
+
 --==========================================================================
 -- BIND KEY HANDLING
 --==========================================================================
@@ -4558,25 +5419,35 @@ end
 --==========================================================================
 -- UI TOGGLE KEY (RightShift)
 --==========================================================================
+toggleUIVisibility = function()
+    State.UIVisible = not State.UIVisible
+    if not MainFrame or not MainFrameScale then return end
+
+    if State.UIVisible then
+        MainFrameScale.Scale = MobileUIScale * 0.85
+        MainFrame.Visible = true
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Scale = MobileUIScale,
+        }):Play()
+    else
+        TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Scale = MobileUIScale * 0.7,
+        }):Play()
+        task.delay(0.2, function()
+            if not State.UIVisible and MainFrame then
+                MainFrame.Visible = false
+                MainFrameScale.Scale = MobileUIScale
+            end
+        end)
+    end
+end
+
 local function setupUIToggle()
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         local kc = keyNameToKeyCode(Config.UIToggleKey)
         if kc and input.KeyCode == kc then
-            State.UIVisible = not State.UIVisible
-            if MainFrame and MainFrameScale then
-                if State.UIVisible then
-                    MainFrameScale.Scale = 0.85
-                    MainFrame.Visible = true
-                    TweenService:Create(MainFrameScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
-                else
-                    TweenService:Create(MainFrameScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale = 0.7}):Play()
-                    task.delay(0.2, function()
-                        MainFrame.Visible = false
-                        MainFrameScale.Scale = 1
-                    end)
-                end
-            end
+            toggleUIVisibility()
         end
     end)
 end
@@ -4594,6 +5465,7 @@ local function onCharacterAdded(char)
     applyUnlimitedZoom()
     applyWalkSpeed()
     if Config.BunnyHop then setupBunnyHop() end
+    if Config.AutoJump then setupAutoJump() end
     if Config.FlyMode then toggleFly() end
     if Config.Noclip then toggleNoclip() end
     refreshAllESP()
@@ -4624,6 +5496,7 @@ function DayiHub.SetToggle(name, value)
     elseif name == "FPSBooster" then applyFPSBooster()
     elseif name == "VFXRemover" then applyVFXRemover()
     elseif name == "ParticleRemover" then applyParticleRemover()
+    elseif name == "CutsceneRemover" then applyCutsceneRemover()
     elseif name == "TextureOptimizer" then applyTextureOptimizer()
     elseif name == "ShadowRemover" then applyShadowRemover()
     elseif name == "LightOptimizer" then applyLightOptimizer()
@@ -4638,6 +5511,7 @@ function DayiHub.SetToggle(name, value)
     elseif name == "ShowCircle" then updateCircle()
     elseif name == "SpeedHack" then applyWalkSpeed()
     elseif name == "BunnyHop" then setupBunnyHop()
+    elseif name == "AutoJump" then setupAutoJump()
     elseif name == "InfiniteJump" then setupInfiniteJump() applyJumpPower()
     elseif name == "FlyMode" then toggleFly()
     elseif name == "Noclip" then toggleNoclip()
@@ -4664,7 +5538,7 @@ function DayiHub.SetSlider(name, value)
     elseif name == "RGBSpeed" then Config.RGBSpeed = value
     elseif name == "UIScale" then
         if MainFrameScale then
-            MainFrameScale.Scale = value / 100
+            MainFrameScale.Scale = (value / 100) * MobileUIScale
         end
     end
 end
@@ -4707,7 +5581,7 @@ getgenv().DayiHub = DayiHub
 --==========================================================================
 -- INIT
 --==========================================================================
-local function showWarningUI(onAccept)
+showWarningUI = function(onAccept, onClose)
     local oldWarn = CoreGui:FindFirstChild("DAYI_HUB_WARNING")
     if oldWarn then oldWarn:Destroy() end
     local oldWarn2 = LocalPlayer.PlayerGui:FindFirstChild("DAYI_HUB_WARNING")
@@ -4865,6 +5739,7 @@ local function showWarningUI(onAccept)
         ClipsDescendants = false,
     })
     makeUICorner(card, 20)
+    applyMobileUIScale(card, true)
 
     -- Card gradient background
     local cardGrad = Instance.new("UIGradient")
@@ -5431,6 +6306,9 @@ local function showWarningUI(onAccept)
         end
         task.wait(0.35)
         warnGui:Destroy()
+        if onClose then
+            onClose()
+        end
     end
 
     closeBtn.MouseButton1Click:Connect(closeWarning)
@@ -5452,6 +6330,8 @@ local function showWarningUI(onAccept)
             return
         end
         closeWarning()
+        Config.WarningAcknowledged = true
+        saveConfig()
         onAccept()
     end)
     exitBtn.MouseButton1Click:Connect(closeWarning)
@@ -5570,6 +6450,7 @@ showOnboarding = function(onComplete)
         ZIndex = 10,
     })
     makeUICorner(card, 18)
+    applyMobileUIScale(card, true)
     local cardGrad = Instance.new("UIGradient")
     cardGrad.Color = ColorSequence.new(Colors.BgGrad1, Colors.BgGrad2)
     cardGrad.Rotation = 145
@@ -6100,6 +6981,7 @@ local function showLoadingScreen(onComplete)
         ZIndex = 10,
     })
     makeUICorner(card, 18)
+    applyMobileUIScale(card, true)
 
     -- Gradient background on card
     local cardGrad = Instance.new("UIGradient")
@@ -6653,6 +7535,7 @@ local function showWelcomeBackNotification(onComplete)
         Visible = false,
     })
     makeUICorner(card, 10)
+    applyMobileUIScale(card)
     makeUIStroke(card, Colors.Purple, 1.5, 0)
 
     local accentBar = makeFrame(card, {
@@ -6748,6 +7631,7 @@ local function showDeviceSelector(onComplete)
         BorderSizePixel = 0,
     })
     makeUICorner(card, 14)
+    applyMobileUIScale(card, true)
     makeUIGradient(card, Colors.CardGrad1, Colors.CardGrad2, 135)
     makeUIStroke(card, Colors.Purple, 1.5, 0.3)
 
@@ -6875,14 +7759,16 @@ local function init()
     end
 
     loadConfig()
+    loadConfigSlots()
+    Config.DeviceMode = IsMobileDevice and "mobile" or "pc"
 
     -- Force all features OFF on startup; user enables what they want
     for _, k in ipairs({
-        "UnlimitedZoom", "FPSBooster", "VFXRemover", "ParticleRemover", "TextureOptimizer",
+        "UnlimitedZoom", "FPSBooster", "VFXRemover", "ParticleRemover", "CutsceneRemover", "TextureOptimizer",
         "ShadowRemover", "LightOptimizer", "WaterOptimizer", "GrassOptimizer",
         "WallhackESP", "SkeletonESP", "BoxESP", "NameESP",
         "Aimbot", "MobileAimbot", "ShowCircle",
-        "SpeedHack", "BunnyHop", "FlyMode", "Noclip", "InfiniteJump",
+        "SpeedHack", "BunnyHop", "AutoJump", "FlyMode", "Noclip", "InfiniteJump",
         "AntiRagdoll", "GodMode",
         "FOVCheck", "TeamCheck", "VisibilityCheck", "RGBAccent",
     }) do
@@ -6905,12 +7791,7 @@ local function init()
         buildPages()
 
         if MainFrameScale then
-            local targetScale = 1
-            if Config.DeviceMode == "mobile" then
-                local vp = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
-                targetScale = math.min((vp.X - 30) / 1040, (vp.Y - 30) / 640, 1)
-                targetScale = math.max(targetScale, 0.4)
-            end
+            local targetScale = MobileUIScale
             MainFrameScale.Scale = targetScale * 0.85
             TweenService:Create(MainFrameScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = targetScale}):Play()
         end
@@ -6918,6 +7799,7 @@ local function init()
         -- Apply defaults
         applyUnlimitedZoom()
         applyFPSBooster()
+        applyCutsceneRemover()
         refreshAllESP()
         startESPUpdater()
         toggleAimbot()
@@ -6927,6 +7809,7 @@ local function init()
         applyWalkSpeed()
         applyCameraFOV()
         setupBunnyHop()
+        setupAutoJump()
         setupInfiniteJump()
         applyJumpPower()
         toggleFly()
@@ -6945,8 +7828,12 @@ local function init()
         end)
 
         applyAccentTheme(Config.AccentTheme)
+        toggleRGBAccent()
         local planInfo = PlanDisplay[UserPlan] or PlanDisplay.free
-        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! Press " .. Config.UIToggleKey .. " to toggle UI.", 4)
+        local toggleHint = IsMobileDevice
+            and "Tap the DAYI logo button to toggle UI."
+            or ("Press " .. Config.UIToggleKey .. " to toggle UI.")
+        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! " .. toggleHint, 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
@@ -6965,7 +7852,7 @@ local function init()
         end
     end
 
-    showWarningUI(function()
+    local function continueAfterWarning()
         showLoadingScreen(function()
             if not Config.DeviceMode then
                 showDeviceSelector(continueAfterLoading)
@@ -6973,7 +7860,13 @@ local function init()
                 continueAfterLoading()
             end
         end)
-    end)
+    end
+
+    if Config.WarningAcknowledged then
+        continueAfterWarning()
+    else
+        showWarningUI(continueAfterWarning)
+    end
 end
 
 init()
