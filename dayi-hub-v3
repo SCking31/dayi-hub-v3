@@ -2134,7 +2134,7 @@ local function buildGUI()
         { name = "Premium",  icon = "👑", badge = "NEW", premiumOnly = true },
         { name = "Misc",     icon = "🧩" },
         { name = "Configs",  icon = "🗂️" },
-        { name = "AI (WIP)", icon = "🤖" },
+        { name = "AI",        icon = "🤖", badge = "WIP", wip = true },
         { name = "Settings",  icon = "⚙️" },
         { name = "Changelog", icon = "📝" },
         { name = "Credits",   icon = "🩷" },
@@ -2195,22 +2195,31 @@ local function buildGUI()
         })
 
         if td.badge and not locked then
+            local isWip = td.wip == true
             local badge = makeFrame(btn, {
                 Size = UDim2.new(0, 36, 0, 18),
                 Position = UDim2.new(1, -42, 0.5, -9),
-                BackgroundColor3 = Colors.PurpleDk,
+                BackgroundColor3 = isWip and Color3.fromRGB(60, 44, 18) or Colors.PurpleDk,
             })
             makeUICorner(badge, 9)
-            makeUIGradient(badge, Color3.fromRGB(60, 20, 110), Color3.fromRGB(40, 10, 80), 135)
-            makeUIStroke(badge, Colors.Purple, 1, 0.5)
+            if isWip then
+                makeUIGradient(badge, Color3.fromRGB(84, 60, 20), Color3.fromRGB(56, 40, 12), 135)
+                makeUIStroke(badge, Colors.Amber, 1, 0.4)
+            else
+                makeUIGradient(badge, Color3.fromRGB(60, 20, 110), Color3.fromRGB(40, 10, 80), 135)
+                makeUIStroke(badge, Colors.Purple, 1, 0.5)
+            end
             makeTextLabel(badge, {
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 Text = td.badge,
-                TextColor3 = Colors.PurpleBright,
+                TextColor3 = isWip and Colors.Amber or Colors.PurpleBright,
                 TextSize = 9,
                 Font = Enum.Font.SourceSansBold,
             })
+            if isWip then
+                addGlowPulse(badge, 0.15, 0.15, 1.2)
+            end
         end
 
         if locked then
@@ -2279,8 +2288,8 @@ local function buildGUI()
             local iconOrigSize = iconLabel.TextSize
             iconLabel.TextSize = iconOrigSize + 6
             playSpringTween(iconLabel, {TextSize = iconOrigSize}, "bounce", 0.4)
-            -- Ripple
-            addRippleClick(btn, Colors.PurpleBright)
+            -- Ripple (tek seferlik, baglanti birikmesini onler)
+            playRipple(btn, math.random(0, btn.AbsoluteSize.X), math.random(0, btn.AbsoluteSize.Y), Colors.PurpleBright)
 
             -- Page transition: crossfade + slide + stagger
             local oldPage = PageFrames[oldTab]
