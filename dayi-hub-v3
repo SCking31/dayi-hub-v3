@@ -3023,11 +3023,18 @@ local function buildGraphicsPage()
     createPageHeader(page, "🖥️", "Graphics", "Enhance your game graphics and performance.", Colors.Purple)
 
     local scroll = createScrollContent(page, 52)
+    makeUIListLayout(scroll, 6)
+
+    local gridHolder = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 0),
+        BackgroundTransparency = 1,
+        AutomaticSize = Enum.AutomaticSize.Y,
+    })
     local grid = Instance.new("UIGridLayout")
     grid.CellSize = UDim2.new(0.5, -3, 0, 82)
     grid.CellPadding = UDim2.new(0, 6, 0, 6)
     grid.SortOrder = Enum.SortOrder.LayoutOrder
-    grid.Parent = scroll
+    grid.Parent = gridHolder
 
     local features = {
         -- Keep this first so it is immediately visible on mobile and scaled layouts.
@@ -3046,10 +3053,15 @@ local function buildGraphicsPage()
 
     for i, f in ipairs(features) do
         local effectiveLocked = f.locked and not isPremiumUser()
-        createFeatureCard(scroll, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
+        createFeatureCard(gridHolder, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
             DayiHub.SetToggle(f.key, on)
         end)
     end
+
+    -- FPS Unlocker limit slider (1-500, 500 = unlimited)
+    createSliderRow(scroll, "🚀", "FPS Limit", 1, 500, math.clamp(math.floor(tonumber(Config.FPSLimit) or 240), 1, 500), Colors.Purple, function(val)
+        DayiHub.SetSlider("FPSLimit", math.floor(val))
+    end)
 end
 
 local function buildVisualPage()
@@ -3291,7 +3303,7 @@ local function buildPremiumPage()
         toggleRGBAccent()
     end)
 
-    createSliderRow(scroll, "🚀", "FPS Limit", 30, 500, Config.FPSLimit or 240, Colors.Purple, function(val)
+    createSliderRow(scroll, "🚀", "FPS Limit", 1, 500, Config.FPSLimit or 240, Colors.Purple, function(val)
         DayiHub.SetSlider("FPSLimit", math.floor(val))
     end)
 
@@ -4414,7 +4426,7 @@ local function applyFPSUnlocker(silent)
     local cap
     if Config.FPSUnlocker then
         local limit = tonumber(Config.FPSLimit) or 240
-        if limit > 400 then
+        if limit >= 500 then
             cap = 0 -- unlimited
         else
             cap = math.floor(limit)
