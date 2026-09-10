@@ -1,6 +1,6 @@
 --[[
 ══════════════════════════════════════════════════════════════════════════════
-    DAYI SCRIPT HUB v10.4
+    DAYI SCRIPT HUB v11.5
     Premium Utility Hub
     Owner & Developer: syfix
     Discord: discord.gg/dayikey
@@ -1531,6 +1531,8 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
             playSpringTween(card, {BackgroundColor3 = Colors.Card}, "soft", 0.2)
         end)
     end
+
+    return card
 end
 
 --==========================================================================
@@ -1857,7 +1859,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 20),
         Position = UDim2.new(0, 0, 0, 4),
         BackgroundTransparency = 1,
-        Text = "v10.4",
+        Text = "v11.5",
         TextColor3 = Colors.Text,
         TextSize = 13,
         Font = Enum.Font.SourceSansBold,
@@ -1866,7 +1868,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 14),
         Position = UDim2.new(0, 0, 0, 22),
         BackgroundTransparency = 1,
-        Text = "v10.4",
+        Text = "v11.5",
         TextColor3 = Colors.TextDim,
         TextSize = 10,
         Font = Enum.Font.SourceSans,
@@ -2557,7 +2559,7 @@ local function buildGUI()
 
     local statusItems = {
         { icon = "💬", label = "Discord",    val = "discord.gg/QFwWBWM2j", color = Colors.Purple, live = false },
-        { icon = "⌨️", label = "Build",       val = "v10.4",              color = Colors.Purple, live = false },
+        { icon = "⌨️", label = "Build",       val = "v11.5",              color = Colors.Purple, live = false },
         { icon = "📊", label = "FPS",          val = "-- FPS",             color = Colors.Green,  live = "fps" },
         { icon = "📡", label = "Ping",         val = "-- ms",              color = Colors.Green,  live = "ping" },
     }
@@ -2740,7 +2742,7 @@ local AIHelpResponses = {
     },
     {
         keywords = {"version", "build", "which version"},
-        response = "This is DAYI SCRIPT HUB v10.4, made by syfix.",
+        response = "This is DAYI SCRIPT HUB v11.5, made by syfix.",
     },
     {
         keywords = {"open ui", "close ui", "hide ui", "toggle ui", "reopen"},
@@ -3028,7 +3030,7 @@ local function buildGraphicsPage()
     local gridHolder = makeFrame(scroll, {
         Size = UDim2.new(1, 0, 0, 0),
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
+        LayoutOrder = 1,
     })
     local grid = Instance.new("UIGridLayout")
     grid.CellSize = UDim2.new(0.5, -3, 0, 82)
@@ -3053,15 +3055,25 @@ local function buildGraphicsPage()
 
     for i, f in ipairs(features) do
         local effectiveLocked = f.locked and not isPremiumUser()
-        createFeatureCard(gridHolder, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
+        local card = createFeatureCard(gridHolder, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
             DayiHub.SetToggle(f.key, on)
         end)
+        if card and typeof(card) == "Instance" then
+            card.LayoutOrder = i
+        end
     end
 
+    -- Grid has a fixed height so the slider below is never overlapped or hidden.
+    local rows = math.ceil(#features / 2)
+    gridHolder.Size = UDim2.new(1, 0, 0, rows * 82 + math.max(rows - 1, 0) * 6)
+
     -- FPS Unlocker limit slider (1-500, 500 = unlimited)
-    createSliderRow(scroll, "🚀", "FPS Limit", 1, 500, math.clamp(math.floor(tonumber(Config.FPSLimit) or 240), 1, 500), Colors.Purple, function(val)
+    local fpsSlider = createSliderRow(scroll, "🚀", "FPS Limit", 1, 500, math.clamp(math.floor(tonumber(Config.FPSLimit) or 240), 1, 500), Colors.Purple, function(val)
         DayiHub.SetSlider("FPSLimit", math.floor(val))
     end)
+    if fpsSlider and typeof(fpsSlider) == "Instance" then
+        fpsSlider.LayoutOrder = 100
+    end
 end
 
 local function buildVisualPage()
@@ -3687,12 +3699,17 @@ local function buildChangelogPage()
 
     local updates = {
         {
-            version = "v10.5",
-            date = "2026-08-19",
+            version = "v11.5",
+            date = "2026-09-10",
             badge = "NEW",
             badgeColor = Colors.Green,
             sections = {
                 { type = "added", items = {
+                    "FPS Unlocker toggle added to the Graphics tab (removes the Roblox FPS cap)",
+                    "FPS Limit slider (1-500) added right under the Graphics feature cards",
+                    "Setting the FPS Limit slider to 500 unlocks unlimited FPS",
+                    "FPS Limit slider also added to the Premium tab",
+                    "Executor FPS cap support: setfpscap / set_fps_cap / setfpslimit",
                     "Warning screen is remembered after the first accepted acknowledgement",
                     "Replay Warning action added to Quick Actions",
                     "Cutscene Remover toggle added to Graphics",
@@ -3700,6 +3717,9 @@ local function buildChangelogPage()
                     "beren added to Credits as Best Waifu",
                 }},
                 { type = "fixed", items = {
+                    "Every version label across the hub is now unified as v11.5",
+                    "FPS Limit slider is no longer hidden behind the Graphics card grid",
+                    "Turning FPS Unlocker off restores the default 60 FPS cap",
                     "Replay Warning now hides the main UI until the warning screen closes",
                     "Loading modules screen no longer hangs (spinner task.cancel fix)",
                     "Particle thread cleanup fixed (task.cancel replaces Disconnect)",
@@ -3992,7 +4012,7 @@ local function buildCreditsPage()
         Size = UDim2.new(1, -60, 0, 16),
         Position = UDim2.new(0, 56, 0, 42),
         BackgroundTransparency = 1,
-        Text = "v10.4 — Premium Utility Hub",
+        Text = "v11.5 — Premium Utility Hub",
         TextColor3 = Colors.TextDim,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -7079,7 +7099,7 @@ showOnboarding = function(onComplete)
         {
             icon = "🔥",
             title = "DAYI HUB",
-            subtitle = "v10.4 — Premium Utility Hub",
+            subtitle = "v11.5 — Premium Utility Hub",
             body = "Thanks for installing DAYI HUB! This quick tour will show you the essentials. You can always replay this intro from Settings.",
             accent = Colors.Purple,
         },
@@ -7561,7 +7581,7 @@ local function showLoadingScreen(onComplete)
     makeTextLabel(versionBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "v10.4",
+        Text = "v11.5",
         TextColor3 = Colors.Purple,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Center,
@@ -8235,11 +8255,11 @@ local function init()
         local toggleHint = IsMobileDevice
             and "Tap the DAYI logo button to toggle UI."
             or ("Press " .. Config.UIToggleKey .. " to toggle UI.")
-        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! " .. toggleHint, 4)
+        notify("DAYI HUB v11.5", "Loaded (" .. planInfo.label .. ")! " .. toggleHint, 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
-        print("[DAYI HUB] v10.4 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
+        print("[DAYI HUB] v11.5 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
         print("[DAYI HUB] Discord: discord.gg/QFwWBWM2j")
     end
 
