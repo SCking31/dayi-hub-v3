@@ -64,6 +64,8 @@ end
 local Config = {
     UnlimitedZoom      = false,
     FPSBooster         = false,
+    FPSUnlocker        = false,
+    FPSLimit           = 240,
     VFXRemover         = false,
     ParticleRemover     = false,
     CutsceneRemover     = false,
@@ -3032,6 +3034,7 @@ local function buildGraphicsPage()
         { name = "Cutscene Remover (WIP)", desc = "Skip named camera and UI cutscenes.", icon = "🎬", locked = false, default = Config.CutsceneRemover, key = "CutsceneRemover" },
         { name = "Unlimited Zoom",    desc = "Remove Roblox zoom limit.",   icon = "🔍", locked = false, default = Config.UnlimitedZoom, key = "UnlimitedZoom" },
         { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = Config.FPSBooster, key = "FPSBooster" },
+        { name = "FPS Unlocker",       desc = "Remove Roblox FPS limit.",    icon = "🚀", locked = false, default = Config.FPSUnlocker, key = "FPSUnlocker" },
         { name = "VFX Remover",        desc = "Remove all visual effects.",  icon = "📦", locked = false, default = Config.VFXRemover, key = "VFXRemover" },
         { name = "Particle Remover",   desc = "Remove all particles.",       icon = "✨", locked = false, default = Config.ParticleRemover, key = "ParticleRemover" },
         { name = "Texture Optimizer",  desc = "Optimize texture quality.",    icon = "🖼️", locked = false, default = Config.TextureOptimizer, key = "TextureOptimizer" },
@@ -3286,6 +3289,10 @@ local function buildPremiumPage()
     createToggleRow(scroll, "🌈", "RGB Accent Mode", Colors.Pink, Config.RGBAccent, function(on)
         Config.RGBAccent = on
         toggleRGBAccent()
+    end)
+
+    createSliderRow(scroll, "🚀", "FPS Limit", 30, 500, Config.FPSLimit or 240, Colors.Purple, function(val)
+        DayiHub.SetSlider("FPSLimit", math.floor(val))
     end)
 
     createSliderRow(scroll, "⚡", "RGB Cycle Speed", 0.001, 0.02, 0.003, Colors.Pink, function(val)
@@ -4382,6 +4389,54 @@ local function applyFPSBooster()
             end
         end
     end)
+end
+
+local function applyFPSCap(cap)
+    local applied = false
+    pcall(function()
+        local setter = rawget(getfenv(), "setfpscap")
+            or rawget(getfenv(), "set_fps_cap")
+            or rawget(getfenv(), "setfpslimit")
+        if typeof(setter) == "function" then
+            setter(cap)
+            applied = true
+        end
+    end)
+    if not applied then
+        pcall(function()
+            if setfpscap then setfpscap(cap) applied = true end
+        end)
+    end
+    return applied
+end
+
+local function applyFPSUnlocker(silent)
+    local cap
+    if Config.FPSUnlocker then
+        local limit = tonumber(Config.FPSLimit) or 240
+        if limit > 400 then
+            cap = 0 -- unlimited
+        else
+            cap = math.floor(limit)
+        end
+    else
+        cap = 60
+    end
+
+    local ok = applyFPSCap(cap)
+    if not silent then
+        if ok then
+            if Config.FPSUnlocker then
+                notify("FPS Unlocker", cap == 0 and "FPS limit removed (unlimited)."
+                    or ("FPS limit set to " .. cap .. "."), 3)
+            else
+                notify("FPS Unlocker", "Roblox default 60 FPS limit restored.", 3)
+            end
+        else
+            notify("FPS Unlocker", "Your executor does not support FPS unlocking.", 4)
+        end
+    end
+    return ok
 end
 
 local function destroyVFX(obj)
@@ -5825,6 +5880,7 @@ function DayiHub.SetToggle(name, value)
     Config[name] = value
     if name == "UnlimitedZoom" then applyUnlimitedZoom()
     elseif name == "FPSBooster" then applyFPSBooster()
+    elseif name == "FPSUnlocker" then applyFPSUnlocker()
     elseif name == "VFXRemover" then applyVFXRemover()
     elseif name == "ParticleRemover" then applyParticleRemover()
     elseif name == "CutsceneRemover" then applyCutsceneRemover()
@@ -5857,7 +5913,10 @@ end
 
 function DayiHub.SetSlider(name, value)
     Config[name] = value
-    if name == "WalkSpeed" then applyWalkSpeed()
+    if name == "FPSLimit" then
+        Config.FPSLimit = value
+        if Config.FPSUnlocker then applyFPSUnlocker(true) end
+    elseif name == "WalkSpeed" then applyWalkSpeed()
     elseif name == "CircleRadius" then updateCircle()
     elseif name == "JumpPower" then applyJumpPower()
     elseif name == "CameraFOV" then applyCameraFOV()
