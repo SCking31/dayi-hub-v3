@@ -1,6 +1,6 @@
 --[[
 ══════════════════════════════════════════════════════════════════════════════
-    DAYI SCRIPT HUB v10.4
+    DAYI SCRIPT HUB v11.5
     Premium Utility Hub
     Owner & Developer: syfix
     Discord: discord.gg/dayikey
@@ -1427,9 +1427,10 @@ end
 --==========================================================================
 -- FEATURE CARD (for Graphics page grid)
 --==========================================================================
-local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn, onChange)
+local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn, onChange, sliderConfig)
+    local cardHeight = sliderConfig and 126 or 82
     local card = makeFrame(parent, {
-        Size = UDim2.new(1, 0, 0, 82),
+        Size = UDim2.new(1, 0, 0, cardHeight),
         BackgroundColor3 = locked and Colors.Panel or Colors.Card,
     })
     makeUICorner(card, 9)
@@ -1454,7 +1455,7 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
 
     local iconCircle = makeFrame(card, {
         Size = UDim2.new(0, 46, 0, 46),
-        Position = UDim2.new(0, 10, 0.5, -23),
+        Position = sliderConfig and UDim2.new(0, 10, 0, 10) or UDim2.new(0, 10, 0.5, -23),
         BackgroundColor3 = locked and Color3.fromRGB(28, 28, 36) or Colors.PurpleDk,
     })
     makeUICorner(iconCircle, 23)
@@ -1477,7 +1478,7 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
 
     local nameText = makeTextLabel(card, {
         Size = UDim2.new(1, -130, 0, 18),
-        Position = UDim2.new(0, 66, 0, 20),
+        Position = UDim2.new(0, 66, 0, sliderConfig and 12 or 20),
         BackgroundTransparency = 1,
         Text = name,
         TextColor3 = locked and Colors.TextFaint or Colors.Text,
@@ -1489,7 +1490,7 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
 
     local descText = makeTextLabel(card, {
         Size = UDim2.new(1, -130, 0, 14),
-        Position = UDim2.new(0, 66, 0, 42),
+        Position = UDim2.new(0, 66, 0, sliderConfig and 34 or 42),
         BackgroundTransparency = 1,
         Text = locked and "Premium required" or desc,
         TextColor3 = locked and Colors.TextFaint or Colors.TextDim,
@@ -1518,7 +1519,103 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
         })
     else
         local toggle = createToggle(card, defaultOn, onChange)
-        toggle.Position = UDim2.new(1, -58, 0.5, -12)
+        toggle.Position = sliderConfig and UDim2.new(1, -58, 0, 17) or UDim2.new(1, -58, 0.5, -12)
+    end
+
+    if sliderConfig and not locked then
+        local min = sliderConfig.min
+        local max = sliderConfig.max
+        local current = math.clamp(sliderConfig.defaultVal, min, max)
+        local normalized = (current - min) / (max - min)
+
+        local valueLabel = makeTextLabel(card, {
+            Size = UDim2.new(1, -82, 0, 16),
+            Position = UDim2.new(0, 66, 0, 66),
+            BackgroundTransparency = 1,
+            Text = sliderConfig.label .. ": " .. tostring(current),
+            TextColor3 = Colors.Text,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+
+        local track = makeFrame(card, {
+            Size = UDim2.new(1, -96, 0, 6),
+            Position = UDim2.new(0, 66, 0, 94),
+            BackgroundColor3 = Color3.fromRGB(35, 35, 50),
+            Active = true,
+        })
+        makeUICorner(track, 3)
+
+        local fill = makeFrame(track, {
+            Size = UDim2.new(normalized, 0, 1, 0),
+            BackgroundColor3 = sliderConfig.accentColor,
+        })
+        makeUICorner(fill, 3)
+        makeUIGradient(fill, sliderConfig.accentColor, Color3.fromRGB(sliderConfig.accentColor.R * 220, sliderConfig.accentColor.G * 220, sliderConfig.accentColor.B * 220), 90)
+
+        local knob = makeFrame(track, {
+            Size = UDim2.new(0, 14, 0, 14),
+            Position = UDim2.new(normalized, -7, 0.5, -7),
+            BackgroundColor3 = Colors.White,
+        })
+        makeUICorner(knob, 7)
+        makeUIStroke(knob, sliderConfig.accentColor, 2, 0)
+
+        makeTextLabel(card, {
+            Size = UDim2.new(0, 32, 0, 14),
+            Position = UDim2.new(0, 66, 0, 104),
+            BackgroundTransparency = 1,
+            Text = tostring(min),
+            TextColor3 = Colors.TextDim,
+            TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSans,
+        })
+        makeTextLabel(card, {
+            Size = UDim2.new(0, 36, 0, 14),
+            Position = UDim2.new(1, -66, 0, 104),
+            BackgroundTransparency = 1,
+            Text = tostring(max),
+            TextColor3 = Colors.TextDim,
+            TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Font = Enum.Font.SourceSans,
+        })
+
+        local dragging = false
+        local function updateSlider(inputX)
+            local relative = (inputX - track.AbsolutePosition.X) / track.AbsoluteSize.X
+            relative = math.clamp(relative, 0, 1)
+            local value = math.floor(relative * (max - min) + min + 0.5)
+            local position = (value - min) / (max - min)
+            fill.Size = UDim2.new(position, 0, 1, 0)
+            knob.Position = UDim2.new(position, -7, 0.5, -7)
+            valueLabel.Text = sliderConfig.label .. ": " .. tostring(value)
+            if sliderConfig.onChange then sliderConfig.onChange(value) end
+        end
+
+        track.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                updateSlider(input.Position.X)
+                playSpringTween(knob, {Size = UDim2.new(0, 20, 0, 20)}, "elastic", 0.15)
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+                or input.UserInputType == Enum.UserInputType.Touch) then
+                updateSlider(input.Position.X)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch) then
+                dragging = false
+                playSpringTween(knob, {Size = UDim2.new(0, 14, 0, 14)}, "elastic", 0.3)
+            end
+        end)
     end
 
     -- Feature card hover lift
@@ -1531,6 +1628,8 @@ local function createFeatureCard(parent, iconText, name, desc, locked, defaultOn
             playSpringTween(card, {BackgroundColor3 = Colors.Card}, "soft", 0.2)
         end)
     end
+
+    return card
 end
 
 --==========================================================================
@@ -1857,7 +1956,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 20),
         Position = UDim2.new(0, 0, 0, 4),
         BackgroundTransparency = 1,
-        Text = "v10.4",
+        Text = "v11.5",
         TextColor3 = Colors.Text,
         TextSize = 13,
         Font = Enum.Font.SourceSansBold,
@@ -1866,7 +1965,7 @@ local function buildGUI()
         Size = UDim2.new(1, 0, 0, 14),
         Position = UDim2.new(0, 0, 0, 22),
         BackgroundTransparency = 1,
-        Text = "v10.4",
+        Text = "v11.5",
         TextColor3 = Colors.TextDim,
         TextSize = 10,
         Font = Enum.Font.SourceSans,
@@ -2035,7 +2134,7 @@ local function buildGUI()
         { name = "Premium",  icon = "👑", badge = "NEW", premiumOnly = true },
         { name = "Misc",     icon = "🧩" },
         { name = "Configs",  icon = "🗂️" },
-        { name = "AI (WIP)", icon = "🤖" },
+        { name = "AI",        icon = "🤖", badge = "WIP", wip = true },
         { name = "Settings",  icon = "⚙️" },
         { name = "Changelog", icon = "📝" },
         { name = "Credits",   icon = "🩷" },
@@ -2096,22 +2195,31 @@ local function buildGUI()
         })
 
         if td.badge and not locked then
+            local isWip = td.wip == true
             local badge = makeFrame(btn, {
                 Size = UDim2.new(0, 36, 0, 18),
                 Position = UDim2.new(1, -42, 0.5, -9),
-                BackgroundColor3 = Colors.PurpleDk,
+                BackgroundColor3 = isWip and Color3.fromRGB(60, 44, 18) or Colors.PurpleDk,
             })
             makeUICorner(badge, 9)
-            makeUIGradient(badge, Color3.fromRGB(60, 20, 110), Color3.fromRGB(40, 10, 80), 135)
-            makeUIStroke(badge, Colors.Purple, 1, 0.5)
+            if isWip then
+                makeUIGradient(badge, Color3.fromRGB(84, 60, 20), Color3.fromRGB(56, 40, 12), 135)
+                makeUIStroke(badge, Colors.Amber, 1, 0.4)
+            else
+                makeUIGradient(badge, Color3.fromRGB(60, 20, 110), Color3.fromRGB(40, 10, 80), 135)
+                makeUIStroke(badge, Colors.Purple, 1, 0.5)
+            end
             makeTextLabel(badge, {
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 Text = td.badge,
-                TextColor3 = Colors.PurpleBright,
+                TextColor3 = isWip and Colors.Amber or Colors.PurpleBright,
                 TextSize = 9,
                 Font = Enum.Font.SourceSansBold,
             })
+            if isWip then
+                addGlowPulse(badge, 0.15, 0.15, 1.2)
+            end
         end
 
         if locked then
@@ -2180,8 +2288,8 @@ local function buildGUI()
             local iconOrigSize = iconLabel.TextSize
             iconLabel.TextSize = iconOrigSize + 6
             playSpringTween(iconLabel, {TextSize = iconOrigSize}, "bounce", 0.4)
-            -- Ripple
-            addRippleClick(btn, Colors.PurpleBright)
+            -- Ripple (tek seferlik, baglanti birikmesini onler)
+            playRipple(btn, math.random(0, btn.AbsoluteSize.X), math.random(0, btn.AbsoluteSize.Y), Colors.PurpleBright)
 
             -- Page transition: crossfade + slide + stagger
             local oldPage = PageFrames[oldTab]
@@ -2557,7 +2665,7 @@ local function buildGUI()
 
     local statusItems = {
         { icon = "💬", label = "Discord",    val = "discord.gg/QFwWBWM2j", color = Colors.Purple, live = false },
-        { icon = "⌨️", label = "Build",       val = "v10.4",              color = Colors.Purple, live = false },
+        { icon = "⌨️", label = "Build",       val = "v11.5",              color = Colors.Purple, live = false },
         { icon = "📊", label = "FPS",          val = "-- FPS",             color = Colors.Green,  live = "fps" },
         { icon = "📡", label = "Ping",         val = "-- ms",              color = Colors.Green,  live = "ping" },
     }
@@ -2740,7 +2848,7 @@ local AIHelpResponses = {
     },
     {
         keywords = {"version", "build", "which version"},
-        response = "This is DAYI SCRIPT HUB v10.4, made by syfix.",
+        response = "This is DAYI SCRIPT HUB v11.5, made by syfix.",
     },
     {
         keywords = {"open ui", "close ui", "hide ui", "toggle ui", "reopen"},
@@ -2844,7 +2952,10 @@ local function getAIHelpResponse(input)
 end
 
 local function buildAIPage()
-    local page = createPageContainer("AI (WIP)")
+    local page = createPageContainer("AI")
+    -- Keep the page usable even on executors that reject newer TextBox properties.
+    -- The container is registered first, so a later optional-property failure can
+    -- no longer leave the selected tab as a completely blank panel.
     createPageHeader(page, "🤖", "AI (WIP)", "Ask the local DAYI helper with /help.", Colors.Cyan)
 
     local scroll = createScrollContent(page, 52)
@@ -2905,9 +3016,9 @@ local function buildAIPage()
     questionInput.BackgroundColor3 = Colors.InputBg
     questionInput.BorderSizePixel = 0
     questionInput.ClearTextOnFocus = false
-    questionInput.MultiLine = false
+    pcall(function() questionInput.MultiLine = false end)
     questionInput.PlaceholderText = "/help  (send it alone to list all questions)"
-    questionInput.PlaceholderColor3 = Colors.TextFaint
+    pcall(function() questionInput.PlaceholderColor3 = Colors.TextFaint end)
     questionInput.Text = ""
     questionInput.TextColor3 = Colors.Text
     questionInput.TextSize = 12
@@ -2955,7 +3066,6 @@ local function buildAIPage()
         Text = "No question yet",
         TextColor3 = Colors.TextFaint,
         TextSize = 10,
-        TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSans,
     })
@@ -3010,7 +3120,7 @@ local function buildAIPage()
         end
     end
 
-    sendButton.MouseButton1Click:Connect(submitQuestion)
+    sendButton.Activated:Connect(submitQuestion)
     questionInput.FocusLost:Connect(function(enterPressed)
         if enterPressed then
             submitQuestion()
@@ -3023,14 +3133,10 @@ local function buildGraphicsPage()
     createPageHeader(page, "🖥️", "Graphics", "Enhance your game graphics and performance.", Colors.Purple)
 
     local scroll = createScrollContent(page, 52)
-    local grid = Instance.new("UIGridLayout")
-    grid.CellSize = UDim2.new(0.5, -3, 0, 82)
-    grid.CellPadding = UDim2.new(0, 6, 0, 6)
-    grid.SortOrder = Enum.SortOrder.LayoutOrder
-    grid.Parent = scroll
+    local graphicsLayout = makeUIListLayout(scroll, 6)
+    graphicsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
     local features = {
-        -- Keep this first so it is immediately visible on mobile and scaled layouts.
         { name = "Cutscene Remover (WIP)", desc = "Skip named camera and UI cutscenes.", icon = "🎬", locked = false, default = Config.CutsceneRemover, key = "CutsceneRemover" },
         { name = "Unlimited Zoom",    desc = "Remove Roblox zoom limit.",   icon = "🔍", locked = false, default = Config.UnlimitedZoom, key = "UnlimitedZoom" },
         { name = "FPS Booster",        desc = "Boost your FPS performance.", icon = "⚡", locked = false, default = Config.FPSBooster, key = "FPSBooster" },
@@ -3044,11 +3150,46 @@ local function buildGraphicsPage()
         { name = "Grass Optimizer",     desc = "Optimize grass quality.",      icon = "🌿", locked = false, default = Config.GrassOptimizer, key = "GrassOptimizer" },
     }
 
-    for i, f in ipairs(features) do
-        local effectiveLocked = f.locked and not isPremiumUser()
-        createFeatureCard(scroll, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
-            DayiHub.SetToggle(f.key, on)
-        end)
+    -- Keep the two-column layout; the FPS Unlocker row grows to contain its slider.
+    local pairIndex = 0
+    for i = 1, #features, 2 do
+        pairIndex = pairIndex + 1
+        local containsFPSUnlocker = i <= 4 and i + 1 >= 4
+        local rowHeight = containsFPSUnlocker and 126 or 82
+        local rowHolder = makeFrame(scroll, {
+            Size = UDim2.new(1, 0, 0, rowHeight),
+            BackgroundTransparency = 1,
+            LayoutOrder = pairIndex,
+        })
+        local grid = Instance.new("UIGridLayout")
+        grid.CellSize = UDim2.new(0.5, -3, 0, rowHeight)
+        grid.CellPadding = UDim2.new(0, 6, 0, 0)
+        grid.SortOrder = Enum.SortOrder.LayoutOrder
+        grid.Parent = rowHolder
+
+        for featureIndex = i, math.min(i + 1, #features) do
+            local f = features[featureIndex]
+            local effectiveLocked = f.locked and not isPremiumUser()
+            local sliderConfig = nil
+            if f.key == "FPSUnlocker" then
+                sliderConfig = {
+                    label = "FPS Limit",
+                    min = 1,
+                    max = 500,
+                    defaultVal = math.clamp(math.floor(tonumber(Config.FPSLimit) or 240), 1, 500),
+                    accentColor = Colors.Purple,
+                    onChange = function(val)
+                        DayiHub.SetSlider("FPSLimit", math.floor(val))
+                    end,
+                }
+            end
+            local card = createFeatureCard(rowHolder, f.icon, f.name, f.desc, effectiveLocked, f.default, function(on)
+                DayiHub.SetToggle(f.key, on)
+            end, sliderConfig)
+            if card and typeof(card) == "Instance" then
+                card.LayoutOrder = featureIndex
+            end
+        end
     end
 end
 
@@ -3291,7 +3432,7 @@ local function buildPremiumPage()
         toggleRGBAccent()
     end)
 
-    createSliderRow(scroll, "🚀", "FPS Limit", 30, 500, Config.FPSLimit or 240, Colors.Purple, function(val)
+    createSliderRow(scroll, "🚀", "FPS Limit", 1, 500, Config.FPSLimit or 240, Colors.Purple, function(val)
         DayiHub.SetSlider("FPSLimit", math.floor(val))
     end)
 
@@ -3675,12 +3816,17 @@ local function buildChangelogPage()
 
     local updates = {
         {
-            version = "v10.5",
-            date = "2026-08-19",
+            version = "v11.5",
+            date = "2026-09-10",
             badge = "NEW",
             badgeColor = Colors.Green,
             sections = {
                 { type = "added", items = {
+                    "FPS Unlocker toggle added to the Graphics tab (removes the Roblox FPS cap)",
+                    "FPS Limit slider (1-500) added inside the FPS Unlocker card",
+                    "Setting the FPS Limit slider to 500 unlocks unlimited FPS",
+                    "FPS Limit slider also added to the Premium tab",
+                    "Executor FPS cap support: setfpscap / set_fps_cap / setfpslimit",
                     "Warning screen is remembered after the first accepted acknowledgement",
                     "Replay Warning action added to Quick Actions",
                     "Cutscene Remover toggle added to Graphics",
@@ -3688,6 +3834,9 @@ local function buildChangelogPage()
                     "beren added to Credits as Best Waifu",
                 }},
                 { type = "fixed", items = {
+                    "Every version label across the hub is now unified as v11.5",
+                    "FPS Limit slider visibility fixed without changing the existing UI style",
+                    "Turning FPS Unlocker off restores the default 60 FPS cap",
                     "Replay Warning now hides the main UI until the warning screen closes",
                     "Loading modules screen no longer hangs (spinner task.cancel fix)",
                     "Particle thread cleanup fixed (task.cancel replaces Disconnect)",
@@ -3980,7 +4129,7 @@ local function buildCreditsPage()
         Size = UDim2.new(1, -60, 0, 16),
         Position = UDim2.new(0, 56, 0, 42),
         BackgroundTransparency = 1,
-        Text = "v10.4 — Premium Utility Hub",
+        Text = "v11.5 — Premium Utility Hub",
         TextColor3 = Colors.TextDim,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -4302,7 +4451,7 @@ buildPages = function()
     safeBuild("Premium",   buildPremiumPage)
     safeBuild("Misc",      buildMiscPage)
     safeBuild("Configs",   buildConfigsPage)
-    safeBuild("AI (WIP)",  buildAIPage)
+    safeBuild("AI",  buildAIPage)
     safeBuild("Settings",  buildSettingsPage)
     safeBuild("Changelog", buildChangelogPage)
     safeBuild("Credits",   buildCreditsPage)
@@ -4414,7 +4563,7 @@ local function applyFPSUnlocker(silent)
     local cap
     if Config.FPSUnlocker then
         local limit = tonumber(Config.FPSLimit) or 240
-        if limit > 400 then
+        if limit >= 500 then
             cap = 0 -- unlimited
         else
             cap = math.floor(limit)
@@ -7067,7 +7216,7 @@ showOnboarding = function(onComplete)
         {
             icon = "🔥",
             title = "DAYI HUB",
-            subtitle = "v10.4 — Premium Utility Hub",
+            subtitle = "v11.5 — Premium Utility Hub",
             body = "Thanks for installing DAYI HUB! This quick tour will show you the essentials. You can always replay this intro from Settings.",
             accent = Colors.Purple,
         },
@@ -7549,7 +7698,7 @@ local function showLoadingScreen(onComplete)
     makeTextLabel(versionBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "v10.4",
+        Text = "v11.5",
         TextColor3 = Colors.Purple,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Center,
@@ -8223,11 +8372,11 @@ local function init()
         local toggleHint = IsMobileDevice
             and "Tap the DAYI logo button to toggle UI."
             or ("Press " .. Config.UIToggleKey .. " to toggle UI.")
-        notify("DAYI HUB v10.4", "Loaded (" .. planInfo.label .. ")! " .. toggleHint, 4)
+        notify("DAYI HUB v11.5", "Loaded (" .. planInfo.label .. ")! " .. toggleHint, 4)
         task.delay(2, function()
             notify("Don't forget to join Discord server", "discord.gg/QFwWBWM2j", 6)
         end)
-        print("[DAYI HUB] v10.4 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
+        print("[DAYI HUB] v11.5 loaded. Press " .. Config.UIToggleKey .. " to toggle UI.")
         print("[DAYI HUB] Discord: discord.gg/QFwWBWM2j")
     end
 
