@@ -3,7 +3,9 @@
     DAYI SCRIPT HUB v11.5
     Premium Utility Hub
     Owner & Developer: syfix
-    Discord: gang ı need team for discord :(
+    Discord: discord.gg/dayikey
+
+    All-in-one Lua script with built-in Roblox GUI (no external UI needed).
 ══════════════════════════════════════════════════════════════════════════════
 ]]
 
@@ -2950,7 +2952,10 @@ local function getAIHelpResponse(input)
 end
 
 local function buildAIPage()
-    local page = createPageContainer("AI (WIP)")
+    local page = createPageContainer("AI")
+    -- Keep the page usable even on executors that reject newer TextBox properties.
+    -- The container is registered first, so a later optional-property failure can
+    -- no longer leave the selected tab as a completely blank panel.
     createPageHeader(page, "🤖", "AI (WIP)", "Ask the local DAYI helper with /help.", Colors.Cyan)
 
     local scroll = createScrollContent(page, 52)
@@ -3011,9 +3016,9 @@ local function buildAIPage()
     questionInput.BackgroundColor3 = Colors.InputBg
     questionInput.BorderSizePixel = 0
     questionInput.ClearTextOnFocus = false
-    questionInput.MultiLine = false
+    pcall(function() questionInput.MultiLine = false end)
     questionInput.PlaceholderText = "/help  (send it alone to list all questions)"
-    questionInput.PlaceholderColor3 = Colors.TextFaint
+    pcall(function() questionInput.PlaceholderColor3 = Colors.TextFaint end)
     questionInput.Text = ""
     questionInput.TextColor3 = Colors.Text
     questionInput.TextSize = 12
@@ -3061,7 +3066,6 @@ local function buildAIPage()
         Text = "No question yet",
         TextColor3 = Colors.TextFaint,
         TextSize = 10,
-        TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
         Font = Enum.Font.SourceSans,
     })
@@ -3116,7 +3120,7 @@ local function buildAIPage()
         end
     end
 
-    sendButton.MouseButton1Click:Connect(submitQuestion)
+    sendButton.Activated:Connect(submitQuestion)
     questionInput.FocusLost:Connect(function(enterPressed)
         if enterPressed then
             submitQuestion()
@@ -4447,7 +4451,7 @@ buildPages = function()
     safeBuild("Premium",   buildPremiumPage)
     safeBuild("Misc",      buildMiscPage)
     safeBuild("Configs",   buildConfigsPage)
-    safeBuild("AI (WIP)",  buildAIPage)
+    safeBuild("AI",  buildAIPage)
     safeBuild("Settings",  buildSettingsPage)
     safeBuild("Changelog", buildChangelogPage)
     safeBuild("Credits",   buildCreditsPage)
