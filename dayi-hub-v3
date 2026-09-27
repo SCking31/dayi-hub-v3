@@ -3045,12 +3045,24 @@ local function getAIHelpResponse(input)
         return AIHelpMenu
     end
 
+    -- Prefer the most specific keyword so "mobile aimbot", "delete config",
+    -- and "replay warning" do not get swallowed by broader matches.
+    local bestResponse = nil
+    local bestKeywordLength = 0
     for _, entry in ipairs(AIHelpResponses) do
         for _, keyword in ipairs(entry.keywords) do
             if string.find(question, keyword, 1, true) then
-                return entry.response
+                local keywordLength = string.len(keyword)
+                if keywordLength > bestKeywordLength then
+                    bestKeywordLength = keywordLength
+                    bestResponse = entry.response
+                end
             end
         end
+    end
+
+    if bestResponse then
+        return bestResponse
     end
 
     return "I don't have an answer for that one yet. Type just /help to see the full list of questions I can answer."
@@ -3128,7 +3140,7 @@ local function buildAIPage()
     makeTextLabel(readyBadge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Text = "●  ONLINE",
+        Text = "●  LOCAL",
         TextColor3 = Colors.Green,
         TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Center,
