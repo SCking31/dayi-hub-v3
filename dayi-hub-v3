@@ -21,6 +21,11 @@ local CoreGui            = game:GetService("CoreGui")
 local TweenService        = game:GetService("TweenService")
 local HttpService         = game:GetService("HttpService")
 local StarterGui         = game:GetService("StarterGui")
+local VirtualUser        = game:GetService("VirtualUser")
+local VirtualInputManager
+pcall(function()
+    VirtualInputManager = game:GetService("VirtualInputManager")
+end)
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = Workspace.CurrentCamera
@@ -91,6 +96,8 @@ local Config = {
     WalkSpeed          = 16,
     BunnyHop           = false,
     AutoJump           = false,
+    AutoClicker        = false,
+    AutoClickerInterval = 120,
     FlyMode            = false,
     FlySpeed           = 25,
     Noclip             = false,
@@ -304,6 +311,7 @@ local State = {
     NoclipConnection    = nil,
     BunnyHopConnection  = nil,
     AutoJumpConnection  = nil,
+    AutoClickerConnection = nil,
     InfiniteJumpConn    = nil,
     GodModeConnection   = nil,
     AntiRagdollConn     = nil,
@@ -2863,6 +2871,8 @@ local AIHelpMenu = table.concat({
     "• /help what does Mobile Aimbot do?",
     "• /help what is Bunny Hop?",
     "• /help what does Auto Jump do?",
+    "• /help what is Auto Clicker?",
+    "• /help how do I change the click interval?",
     "",
     "SETTINGS & ACCESS",
     "• /help how do I save my settings?",
@@ -2986,6 +2996,10 @@ local AIHelpResponses = {
     {
         keywords = {"auto jump", "automatic jump"},
         response = "Auto Jump watches for a grounded character and triggers the next jump for you. It is in Misc and is useful for simple movement loops.",
+    },
+    {
+        keywords = {"auto clicker", "autoclicker", "click interval", "click speed"},
+        response = "Auto Clicker sends left-clicks at your cursor using the interval set inside its Misc card. Lower milliseconds means faster clicks; it pauses while a text box is focused.",
     },
     {
         keywords = {"key cache", "cache last", "three day", "3 day", "three days"},
@@ -3147,6 +3161,60 @@ local function buildAIPage()
         Font = Enum.Font.SourceSansBold,
     })
 
+    local signalStrip = makeFrame(scroll, {
+        Size = UDim2.new(1, 0, 0, 60),
+        BackgroundTransparency = 1,
+    })
+    local signalGrid = Instance.new("UIGridLayout")
+    signalGrid.CellSize = UDim2.new(1 / 3, -4, 1, 0)
+    signalGrid.CellPadding = UDim2.new(0, 6, 0, 0)
+    signalGrid.FillDirection = Enum.FillDirection.Horizontal
+    signalGrid.FillDirectionMaxCells = 3
+    signalGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    signalGrid.Parent = signalStrip
+
+    local aiSignals = {
+        {label = "READY ANSWERS", value = "34", color = Colors.Cyan},
+        {label = "RUNTIME MODE", value = "LOCAL", color = Colors.Green},
+        {label = "DATA PATH", value = "NO API", color = Colors.PurpleBright},
+    }
+    for _, signal in ipairs(aiSignals) do
+        local signalTile = makeFrame(signalStrip, {
+            BackgroundColor3 = Color3.fromRGB(18, 19, 31),
+            BorderSizePixel = 0,
+        })
+        makeUICorner(signalTile, 10)
+        makeUIStroke(signalTile, signal.color, 1, 0.78)
+        local signalDot = makeFrame(signalTile, {
+            Size = UDim2.new(0, 7, 0, 7),
+            Position = UDim2.new(0, 11, 0, 12),
+            BackgroundColor3 = signal.color,
+            BorderSizePixel = 0,
+        })
+        makeUICorner(signalDot, 4)
+        addGlowPulse(signalDot, 0.2, 0.15, 1.4)
+        makeTextLabel(signalTile, {
+            Size = UDim2.new(1, -28, 0, 14),
+            Position = UDim2.new(0, 25, 0, 7),
+            BackgroundTransparency = 1,
+            Text = signal.label,
+            TextColor3 = Colors.TextFaint,
+            TextSize = 8,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+        makeTextLabel(signalTile, {
+            Size = UDim2.new(1, -24, 0, 22),
+            Position = UDim2.new(0, 11, 0, 27),
+            BackgroundTransparency = 1,
+            Text = signal.value,
+            TextColor3 = signal.color,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.SourceSansBold,
+        })
+    end
+
     local inputCard = makeFrame(scroll, {
         Size = UDim2.new(1, 0, 0, 76),
         BackgroundColor3 = Colors.Card,
@@ -3164,7 +3232,7 @@ local function buildAIPage()
     questionInput.BorderSizePixel = 0
     questionInput.ClearTextOnFocus = false
     pcall(function() questionInput.MultiLine = false end)
-    questionInput.PlaceholderText = "/help  (send it alone to list all questions)"
+    questionInput.PlaceholderText = "/help  ask a question or send it alone for the library"
     pcall(function() questionInput.PlaceholderColor3 = Colors.TextFaint end)
     questionInput.Text = ""
     questionInput.TextColor3 = Colors.Text
@@ -3191,7 +3259,7 @@ local function buildAIPage()
     addHoverLift(sendButton, -1, 1.01)
 
     local quickCard = makeFrame(scroll, {
-        Size = UDim2.new(1, 0, 0, 136),
+        Size = UDim2.new(1, 0, 0, 176),
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(quickCard, 12)
@@ -3211,7 +3279,7 @@ local function buildAIPage()
         Size = UDim2.new(1, -24, 0, 16),
         Position = UDim2.new(0, 12, 0, 27),
         BackgroundTransparency = 1,
-        Text = "Start with a focused question",
+        Text = "Pick a lane • answer in one tap",
         TextColor3 = Colors.TextFaint,
         TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -3222,6 +3290,8 @@ local function buildAIPage()
         {label = "◉  Visual tools", prompt = "/help what is ESP?", color = Colors.Pink},
         {label = "⚙  Settings", prompt = "/help how do I save my settings?", color = Colors.Amber},
         {label = "◈  Mobile", prompt = "/help does it work on mobile?", color = Colors.Cyan},
+        {label = "🖱  Auto Clicker", prompt = "/help what is Auto Clicker?", color = Colors.Cyan},
+        {label = "⌨  Keybind", prompt = "/help how do I change my keybind?", color = Colors.PurpleBright},
     }
     for i, item in ipairs(quickPrompts) do
         local col = (i - 1) % 2
@@ -3339,7 +3409,7 @@ local function buildAIPage()
     })
 
     local libraryCard = makeFrame(scroll, {
-        Size = UDim2.new(1, 0, 0, 220),
+        Size = UDim2.new(1, 0, 0, 290),
         BackgroundColor3 = Colors.Card,
     })
     makeUICorner(libraryCard, 12)
@@ -3367,13 +3437,13 @@ local function buildAIPage()
     })
 
     local questionGridFrame = makeFrame(libraryCard, {
-        Size = UDim2.new(1, -24, 0, 166),
+        Size = UDim2.new(1, -24, 0, 234),
         Position = UDim2.new(0, 12, 0, 47),
         BackgroundTransparency = 1,
     })
     local questionGrid = Instance.new("UIGridLayout")
-    questionGrid.CellSize = UDim2.new(0.5, -4, 0, 36)
-    questionGrid.CellPadding = UDim2.new(0, 8, 0, 7)
+    questionGrid.CellSize = UDim2.new(0.5, -4, 0, 34)
+    questionGrid.CellPadding = UDim2.new(0, 8, 0, 6)
     questionGrid.FillDirection = Enum.FillDirection.Horizontal
     questionGrid.FillDirectionMaxCells = 2
     questionGrid.SortOrder = Enum.SortOrder.LayoutOrder
@@ -3384,8 +3454,12 @@ local function buildAIPage()
         {label = "What is Cutscene Remover?", prompt = "/help what is Cutscene Remover?", color = Colors.Amber},
         {label = "How does Aimbot work?", prompt = "/help how does the aimbot work?", color = Colors.Pink},
         {label = "What is Auto Jump?", prompt = "/help what does Auto Jump do?", color = Colors.Cyan},
+        {label = "What is Auto Clicker?", prompt = "/help what is Auto Clicker?", color = Colors.Cyan},
+        {label = "What is Bunny Hop?", prompt = "/help what is Bunny Hop?", color = Colors.Green},
+        {label = "Change click interval?", prompt = "/help how do I change the click interval?", color = Colors.Amber},
         {label = "How long is key cache?", prompt = "/help how long does the key cache last?", color = Colors.PurpleBright},
         {label = "How many config slots?", prompt = "/help how many config slots do I get?", color = Colors.PurpleBright},
+        {label = "How do I change keybind?", prompt = "/help how do I change my keybind?", color = Colors.Amber},
         {label = "Does it work on mobile?", prompt = "/help does it work on mobile?", color = Colors.Cyan},
         {label = "Is this safe?", prompt = "/help is this safe / can I get banned?", color = Colors.Red},
     }
@@ -3596,6 +3670,19 @@ local function buildMiscPage()
     createToggleRow(scroll, "🦘", "Auto Jump", Colors.Cyan, Config.AutoJump, function(on)
         DayiHub.SetToggle("AutoJump", on)
     end, "Why not let your character do the jumping for you?")
+
+    createFeatureCard(scroll, "🖱️", "Auto Clicker", "Left-click at the cursor with a configurable interval.", false, Config.AutoClicker, function(on)
+        DayiHub.SetToggle("AutoClicker", on)
+    end, {
+        label = "Click interval (ms)",
+        min = 40,
+        max = 1000,
+        defaultVal = math.clamp(math.floor(tonumber(Config.AutoClickerInterval) or 120), 40, 1000),
+        accentColor = Colors.Cyan,
+        onChange = function(value)
+            DayiHub.SetSlider("AutoClickerInterval", value)
+        end,
+    })
 end
 
 local function buildPremiumPage()
@@ -6069,6 +6156,74 @@ local function setupAutoJump()
     task.defer(jumpIfGrounded)
 end
 
+local function performAutoClick(mouse)
+    local cursorPosition = Vector2.new(mouse.X, mouse.Y)
+
+    -- Executors that expose mouse1click provide the most reliable input path.
+    if type(mouse1click) == "function" then
+        local ok = pcall(function()
+            mouse1click()
+        end)
+        if ok then return true end
+    end
+
+    -- Fall back to Roblox's virtual input service when the executor exposes it.
+    if VirtualInputManager then
+        local ok = pcall(function()
+            VirtualInputManager:SendMouseButtonEvent(
+                cursorPosition.X,
+                cursorPosition.Y,
+                0,
+                true,
+                game,
+                0
+            )
+            VirtualInputManager:SendMouseButtonEvent(
+                cursorPosition.X,
+                cursorPosition.Y,
+                0,
+                false,
+                game,
+                0
+            )
+        end)
+        if ok then return true end
+    end
+
+    -- VirtualUser remains a compatibility fallback for older environments.
+    local currentCamera = Workspace.CurrentCamera or Camera
+    return pcall(function()
+        VirtualUser:Button1Down(cursorPosition, currentCamera.CFrame)
+        VirtualUser:Button1Up(cursorPosition, currentCamera.CFrame)
+    end)
+end
+
+local function setupAutoClicker()
+    if State.AutoClickerConnection then
+        State.AutoClickerConnection:Disconnect()
+        State.AutoClickerConnection = nil
+    end
+    if not Config.AutoClicker then return end
+
+    local mouse = LocalPlayer:GetMouse()
+    local lastClickAt = 0
+    State.AutoClickerConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AutoClicker then return end
+        if UserInputService:GetFocusedTextBox() then return end
+
+        local interval = math.clamp(
+            tonumber(Config.AutoClickerInterval) or 120,
+            40,
+            1000
+        ) / 1000
+        local now = os.clock()
+        if now - lastClickAt < interval then return end
+        lastClickAt = now
+
+        performAutoClick(mouse)
+    end)
+end
+
 local function setupInfiniteJump()
     if State.InfiniteJumpConn then
         State.InfiniteJumpConn:Disconnect()
@@ -6195,6 +6350,7 @@ applyAllConfig = function()
     applyCameraFOV()
     setupBunnyHop()
     setupAutoJump()
+    setupAutoClicker()
     setupInfiniteJump()
     applyJumpPower()
     toggleFly()
@@ -6305,6 +6461,7 @@ local function onCharacterAdded(char)
     applyWalkSpeed()
     if Config.BunnyHop then setupBunnyHop() end
     if Config.AutoJump then setupAutoJump() end
+    if Config.AutoClicker then setupAutoClicker() end
     if Config.FlyMode then toggleFly() end
     if Config.Noclip then toggleNoclip() end
     refreshAllESP()
@@ -6352,6 +6509,7 @@ function DayiHub.SetToggle(name, value)
     elseif name == "SpeedHack" then applyWalkSpeed()
     elseif name == "BunnyHop" then setupBunnyHop()
     elseif name == "AutoJump" then setupAutoJump()
+    elseif name == "AutoClicker" then setupAutoClicker()
     elseif name == "InfiniteJump" then setupInfiniteJump() applyJumpPower()
     elseif name == "FlyMode" then toggleFly()
     elseif name == "Noclip" then toggleNoclip()
@@ -6370,6 +6528,9 @@ function DayiHub.SetSlider(name, value)
         Config.FPSLimit = value
         if Config.FPSUnlocker then applyFPSUnlocker(true) end
     elseif name == "WalkSpeed" then applyWalkSpeed()
+    elseif name == "AutoClickerInterval" then
+        Config.AutoClickerInterval = math.clamp(math.floor(tonumber(value) or 120), 40, 1000)
+        if Config.AutoClicker then setupAutoClicker() end
     elseif name == "CircleRadius" then updateCircle()
     elseif name == "JumpPower" then applyJumpPower()
     elseif name == "CameraFOV" then applyCameraFOV()
